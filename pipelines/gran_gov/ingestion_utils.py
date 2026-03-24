@@ -2,6 +2,7 @@ import requests
 import json
 import sqlite3
 from jobs.log_utils import log
+from datetime import datetime
 OPPORTUNITY_URL = "https://api.grants.gov/v1/api/fetchOpportunity"
 
 
@@ -134,54 +135,89 @@ def trim_opportunity_ids(opportunity_ids: list[str]) -> list[str]:
         print(f"Error trimming opportunity ids: {e}")
         return None
 
-def update_grant_classification(conn: sqlite3.Connection, opportunity_id: str, classification: dict):
+def update_tribal_eligibility(conn: sqlite3.Connection, opportunity_id: str, tribal_eligibility: dict):
     """
-    Update the classification for a given opportunity.
+    Update the tribal eligibility for a given opportunity.
     """
     try:
-        tags = classification.get("tags", [])
-        tags_json = json.dumps(tags, ensure_ascii=False) if not isinstance(tags, str) else tags
-
-        ir = classification.get("is_relevant")
-        if ir is True:
-            is_rel = 1
-        elif ir is False:
-            is_rel = 0
-        elif isinstance(ir, str) and ir.strip().lower() in ("true", "1", "yes"):
-            is_rel = 1
-        elif isinstance(ir, str) and ir.strip().lower() in ("false", "0", "no"):
-            is_rel = 0
-        else:
-            is_rel = 0
+        is_tribal_eligible = tribal_eligibility.get("is_tribal_eligible")
+        eligibility_score = tribal_eligibility.get("eligibility_score")
+        eligibility_reasoning = tribal_eligibility.get("eligibility_reasoning")
+        model = tribal_eligibility.get("model")
 
         conn.execute(
             """
-            INSERT INTO grant_classifications (
-              opportunity_id, TAGS, MODEL, RELEVANCE_SCORE, REASONING, IS_RELEVANT
+            INSERT INTO tribal_eligibility (
+              opportunity_id, model, eligibility_score, eligibility_reasoning, is_tribal_eligible
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?)
             ON CONFLICT(opportunity_id) DO UPDATE SET
-              TAGS=excluded.TAGS,
-              MODEL=excluded.MODEL,
-              RELEVANCE_SCORE=excluded.RELEVANCE_SCORE,
-              REASONING=excluded.REASONING,
-              IS_RELEVANT=excluded.IS_RELEVANT,
-              UPDATED_AT=datetime('now')
+              model=excluded.model,
+              eligibility_score=excluded.eligibility_score,
+              eligibility_reasoning=excluded.eligibility_reasoning,
+              is_tribal_eligible=excluded.is_tribal_eligible,
+              updated_at=datetime('now')
             """,
             (
                 str(opportunity_id),
-                tags_json,
-                classification.get("MODEL", ""),
-                int(classification.get("relevance_score", 0)),
-                classification.get("reasoning", ""),
-                is_rel,
+                model,
+                eligibility_score,
+                eligibility_reasoning,
+                is_tribal_eligible,
             ),
         )
     except Exception as e:
-        print(f"Error updating grant classification: {e}")
+        print(f"Error updating tribal eligibility: {e}")
         conn.rollback()
         raise
 
+def update_grant_tags(conn: sqlite3.Connection, opportunity_id: str, ai_result: dict, job_id: int):
+    """
+    Update the tags for a given opportunity.
+    """
+    try:
+        tags = ai_result.get("tags", [])
+        for tag in tags:
+            conn.execute("""
+                INSERT INTO grant_tags (
+                  opportunity_id, tag, tag_score, created_at
+                )
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(opportunity_id, tag) DO UPDATE SET
+                tag_score=excluded.tag_score,
+                created_at=excluded.created_at
+            """,
+            (
+                str(opportunity_id),
+                tag.get("tag"),
+                tag.get("score"),
+                datetime.now().isoformat(),
+            ),)
+        conn.commit()
+
+        new_tags = tags.get("new_tags", [])
+        for tag in new_tags:
+            conn.execute("""
+                INSERT INTO grant_tags (
+                  opportunity_id, tag, tag_score, created_at
+                )
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(opportunity_id, tag) DO UPDATE SET
+                tag_score=excluded.tag_score,
+                created_at=excluded.created_at
+            """,
+            (
+                str(opportunity_id),
+                tag.get("tag"),
+                tag.get("score"),
+                datetime.now().isoformat(),
+            ),)
+            log(conn, job_id, f"Non-standard grant tag: {tag.get('tag')}", "INFO")
+        conn.commit()
+    except Exception as e:
+        print(f"Error updating grant tags: {e}")
+        conn.rollback()
+        raise
 def update_last_seen_at(opportunity_ids: list[str], conn: sqlite3.Connection, job_id: int) -> None:
     """
     Update the last_seen_at column for a given opportunity id

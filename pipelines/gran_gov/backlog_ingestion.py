@@ -5,14 +5,16 @@ import sqlite3
 import time
 from pipelines.gran_gov.main import get_opportunity_ids
 from pipelines.gran_gov.ingestion_loop import upsert_grant_current, insert_snapshot
-from pipelines.gran_gov.ingestion_utils import fetch_opportunity, normalize_opportunity, update_grant_classification
-from pipelines.gran_gov.ai_utils import classify_grant, get_groq_client
+from pipelines.gran_gov.ingestion_utils import fetch_opportunity, normalize_opportunity, update_tribal_eligibility, update_grant_tags
+from pipelines.gran_gov.ai_utils import ai_grant_tagging, ai_tribal_eligibility_check, get_groq_client
 from pipelines.gran_gov.init_tables import create_tables
 from pipelines.gran_gov.quick_classification import quick_classification
+from jobs.log_utils import log
 from db.db_util import get_db_connection, is_test_mode
+from jobs.log_utils import create_pipeline_run
 
 
-def ingest_backlog(conn: sqlite3.Connection, test_mode: int = 0):
+def ingest_backlog(conn: sqlite3.Connection, test_mode: int = 0, job_id: int = 0):
     """
     Ingests the backlog of grants from the grant.gov API.
     """
@@ -52,11 +54,11 @@ def ingest_backlog(conn: sqlite3.Connection, test_mode: int = 0):
             insert_snapshot(conn, str(opportunity_id), normalized)
             print("Upserted grant and snapshot completed")
 
-            #4: Classify the grant
+            #4: Classify the grant as tribal eligible
             quick_check_result = quick_classification(normalized)
             print(f"Quick classification result: {quick_check_result}")
-            if quick_check_result["is_relevant"]:
-                update_grant_classification(conn, opportunity_id, quick_check_result)
+            if quick_check_result["is_tribal_eligible"]:
+                update_tribal_eligibility(conn, opportunity_id, quick_check_result)
                 quick_labelled_relevant += 1
                 continue
             
@@ -64,14 +66,22 @@ def ingest_backlog(conn: sqlite3.Connection, test_mode: int = 0):
             if quick_check_result["needs_ai"]:
                 ai_used +=1
                 print("Sending to AI for further classification")
-                ai_result = classify_grant(groq_client, normalized)
+                ai_result = ai_tribal_eligibility_check(groq_client, normalized)
                 if ai_result is None:
                     print("AI classification failed (returned None); skipping.")
                 else:
-                    update_grant_classification(conn, opportunity_id, ai_result)
+                    update_tribal_eligibility(conn, opportunity_id, ai_result)
                     print(f"AI classification result: {ai_result}")
-                    if ai_result.get("is_relevant"):
+                    if ai_result.get("is_tribal_eligible"):
                         ai_labelled_relevant += 1
+            #6: Tag the grant
+            ai_result = ai_grant_tagging(groq_client, normalized)
+            if ai_result is None:
+                print("AI tagging failed (returned None); skipping.")
+            else:
+                update_grant_tags(conn, opportunity_id, ai_result, job_id)
+                print(f"AI tagging result: {ai_result}")
+
             if i % 50 == 0: 
                 conn.commit()
             if i % 10 == 0: 
@@ -101,8 +111,10 @@ if __name__ == "__main__":
     conn = get_db_connection(test_mode=bool(test_mode))
     print("Creating tables...")
     create_tables(conn)
+    print("Creating pipeline run...")
+    job_id = create_pipeline_run(conn, "grants", "backlog")
     print("Ingesting backlog...")
-    ingest_backlog(conn, test_mode=test_mode)
+    ingest_backlog(conn, test_mode=test_mode, job_id=job_id)
     print("Committing changes...")
     conn.commit()
     print("Closing database connection...")

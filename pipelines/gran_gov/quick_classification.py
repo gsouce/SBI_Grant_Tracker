@@ -24,38 +24,12 @@ def text_contains_keywords(text, keywords):
 
 def quick_classification(normalized: dict):
     TRIBAL_CODES = {"07", "11", "09"}
-
-    RELEVANT_CATEGORIES = {"EN", "NR", "ES", "HO", "RD", "CD"}
-
-    WEAK_KEYWORDS = [
-        "tribal",
-        "native",
-        "indian",
-        "community",
-        "infrastructure",
-        "resilience",
-        "climate",
-        "forest",
-        "wood",
-        "biomass",
-        "gaming",
-        "housing",
-        "solar",
-        "renewable",
-        "energy",
-        "electric",
-        "grid",
-        "battery",
-        "geothermal",
-        "wind",
-    ]
-
+    is_tribal_eligible = False
+    eligibility_score = 0
+    eligibility_reasoning = ""
+    model = "quick_classification"
+    needs_ai = False
     tags = []
-    score = 0
-
-    title = (normalized.get("title") or "").lower()
-    desc = (normalized.get("description") or "").lower()
-    full_text = title + " " + desc
 
     eligibilities = safe_json_load(normalized.get("eligibilities", ""))
     categories = safe_json_load(normalized.get("funding_categories", ""))
@@ -66,43 +40,20 @@ def quick_classification(normalized: dict):
         (normalized.get("eligibility_description") or ""), ["tribal", "tribes", "native"]
     )
 
-    if has_tribal or has_tribal_description:
-        score += 50
-        tags.append("tribal_eligible")
+    if has_tribal:
+        is_tribal_eligible = True
+        eligibility_score = 100
+        eligibility_reasoning = "Eligibility Codes contain tribal code"
 
-    # --- 2. Keywords match ---
-    if text_contains_keywords(full_text, WEAK_KEYWORDS) > 0:
-        score += text_contains_keywords(full_text, WEAK_KEYWORDS) * 10
-        tags.append("keywords_match")
-
-    # --- 4. Funding category ---
-    category_ids = {c.get("id") for c in categories}
-
-    if category_ids & RELEVANT_CATEGORIES:
-        score += 30
-        tags.append("relevant_category")
-
-    deadline_description = normalized.get("deadline_description", "")
-    if text_contains_keywords(deadline_description, ["already", "closed", "expired", "archived", "past"]):
-        score -= 75
-        tags.append("deadline_expired")
-
-    # --- DECISION LOGIC ---
-    if score >= 50:
-        is_relevant = True
-        needs_ai = False
-    elif score <= 20:
-        is_relevant = False
-        needs_ai = True  # still send to AI to double-check
-    else:
-        is_relevant = None  # uncertain
-        needs_ai = True
+    elif has_tribal_description:
+        is_tribal_eligible = True
+        eligibility_score = 100
+        eligibility_reasoning = "Eligibility description contains tribal codes"
 
     return {
-        "relevance_score": score,
-        "reasoning": f"quick classification relevance score: {score}",
-        "is_relevant": is_relevant,
-        "MODEL": "quick_classification",
-        "tags": tags,
-        "needs_ai": needs_ai,
+        "eligibility_score": eligibility_score,
+        "eligibility_reasoning": eligibility_reasoning,
+        "is_tribal_eligible": is_tribal_eligible,
+        "model": model,
+        "needs_ai": needs_ai
     }

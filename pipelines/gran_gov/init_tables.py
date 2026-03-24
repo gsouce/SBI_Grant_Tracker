@@ -94,21 +94,42 @@ CREATE UNIQUE INDEX IF NOT EXISTS uniq_grant_alert_dedupe
 ON grant_alerts(opportunity_id, alert_type, field, old_snapshot_hash, new_snapshot_hash);
 
 
-CREATE TABLE IF NOT EXISTS grant_classifications (
+CREATE TABLE IF NOT EXISTS tribal_eligibility (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   opportunity_id TEXT NOT NULL,
-  TAGS JSON NOT NULL,
-  MODEL TEXT NOT NULL,
-  RELEVANCE_SCORE INTEGER NOT NULL,
-  REASONING TEXT NOT NULL,
-  IS_RELEVANT BOOLEAN NOT NULL,
-  UPDATED_AT TEXT NOT NULL DEFAULT (datetime('now')),
+  model TEXT NOT NULL,
+  eligibility_score INTEGER NOT NULL,
+  eligibility_reasoning TEXT NOT NULL,
+  is_tribal_eligible BOOLEAN NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (opportunity_id) REFERENCES grants(opportunity_id)
     ON DELETE CASCADE
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_grant_classifications_opportunity_id
-ON grant_classifications(opportunity_id);
+ON tribal_eligibility(opportunity_id);
+
+CREATE TABLE IS NOT EXISTS grant_tags (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  opportunity_id TEXT NOT NULL,
+  tag TEXT NOT NULL,
+  tag_score INTEGER NOT NULL,
+  created_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (opportunity_id) REFERENCES grants(opportunity_id)
+    ON DELETE CASCADE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_grant_tags_opportunity_id
+ON grant_tags(opportunity_id, tag);
+
+CREATE TABLE user_grant_activity (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  opportunity_id TEXT NOT NULL,
+  status TEXT NOT NULL,  -- viewed, saved, applied
+  created_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (opportunity_id) REFERENCES grants(opportunity_id)
+    ON DELETE CASCADE
+);
 """
 
 

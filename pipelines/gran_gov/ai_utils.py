@@ -21,28 +21,73 @@ def get_groq_client():
         )
     return Groq(api_key=GROQ_API_KEY)
 
-def classify_grant(groq_client, grant):
+def ai_grant_tagging(groq_client, grant):
     prompt = f"""
-        You are evaluating whether a federal grant is relevant to a Native American tribal government.
+        You are classifying a government grant into categories.
+
+        You MUST:
+        1. Assign relevance scores (0-100) to the predefined categories below
+        2. Optionally suggest up to 3 NEW categories if the predefined ones are insufficient
+
+        Predefined categories: Housing, Tribal, Gaming, Cannabis, Environment, Agriculture, Broadband, Technology, Infrastructure, workforce_development
+
+        Rules:
+        - Prefer predefined categories whenever possible
+        - Only create a new category if it captures something important not covered above
+        - New categories must be concise (1-3 words, snake_case)
+        - Do NOT create synonyms of existing categories
+        - Avoid overly specific categories (e.g., "solar_panel_installation_grants")
+
+        Return JSON in this format:
+        {
+        "tags": [
+            {"tag": "energy", "score": 85},
+            {"tag": "tribal", "score": 60}
+        ],
+        "new_tags": [
+            {"tag": "disaster_recovery", "score": 75}
+        ]
+        }
+    """
+    try:
+        response = groq_client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0
+        )
+        content = response.choices[0].message.content
+        if not content:
+            print("No content returned from AI")
+            return None
+        return json.loads(content)
+    except Exception as e:
+        print("Error in ai_grant_tagging:", e)
+        return None
+
+def ai_tribal_eligibility_check(groq_client, grant):
+    prompt = f"""
+        You are evaluating whether a Native American tribal government is eligible for a federal grant.
 
         Respond ONLY with valid JSON.
 
         Grant Title:
         {grant["title"]}
 
-        Description:
-        {grant["description"][:1500] if grant["description"] else "No description available"}
+        Grant Description:
+        {grant.get("description", "")[:1500]}
 
-        Eligibility:
+        Eligibility Codes:
         {grant.get("eligibilities", [])}
+
+        Eligibility Description:
+        {grant.get("eligibility_description", "")}
 
         Return:
         {{
         "MODEL": "{GROQ_MODEL}",
-        "is_relevant": true/false,
-        "relevance_score": 0-100,
-        "tags": [],
-        "reasoning": ""
+        "is_tribal_eligible": true/false,
+        "eligibility_score": 0-100,
+        "eligibility_reasoning": ""
         }}
         """
 
@@ -60,7 +105,7 @@ def classify_grant(groq_client, grant):
         return json.loads(content)
 
     except Exception as e:
-        print("Error:", e)
+        print("Error in ai_tribal_eligibility_check:", e)
         return None
 
 def test_groq():

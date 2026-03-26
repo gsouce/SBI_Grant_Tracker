@@ -54,7 +54,11 @@ def grant_tags_page():
         GROUP BY tag
         ORDER BY count DESC
     """).fetchall()
-    return render_template("grant_tags.html", grant_tags=grant_tags)
+    total_grants = conn.execute("""
+        SELECT COUNT(DISTINCT opportunity_id)
+        FROM grant_tags
+    """).fetchone()[0]
+    return render_template("grant_tags.html", grant_tags=grant_tags, total_grants=total_grants)
 
 @dashboard_bp.route("/dashboard/grant_tags/<tag>")
 def grant_tag_detail_page(tag):

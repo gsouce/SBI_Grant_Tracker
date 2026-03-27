@@ -1,8 +1,8 @@
 import requests
 import json
-import sqlite3
 from jobs.log_utils import log
 from datetime import datetime
+from db.db_util import get_db_connection
 OPPORTUNITY_URL = "https://api.grants.gov/v1/api/fetchOpportunity"
 
 
@@ -122,8 +122,7 @@ def trim_opportunity_ids(opportunity_ids: list[str]) -> list[str]:
     Remove irrelevant opportunity ids from the list
     """
     try:
-        conn = sqlite3.connect("grants.db")
-        conn.execute("BEGIN")
+        conn = get_db_connection(test_mode=False)
         query = """
         SELECT opportunity_id
         FROM grant_classifications
@@ -135,7 +134,7 @@ def trim_opportunity_ids(opportunity_ids: list[str]) -> list[str]:
         print(f"Error trimming opportunity ids: {e}")
         return None
 
-def update_tribal_eligibility(conn: sqlite3.Connection, opportunity_id: str, tribal_eligibility: dict):
+def update_tribal_eligibility(conn, opportunity_id: str, tribal_eligibility: dict):
     """
     Update the tribal eligibility for a given opportunity.
     """
@@ -158,13 +157,13 @@ def update_tribal_eligibility(conn: sqlite3.Connection, opportunity_id: str, tri
             INSERT INTO tribal_eligibility (
               opportunity_id, model, eligibility_score, eligibility_reasoning, is_tribal_eligible
             )
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s)
             ON CONFLICT(opportunity_id) DO UPDATE SET
               model=excluded.model,
               eligibility_score=excluded.eligibility_score,
               eligibility_reasoning=excluded.eligibility_reasoning,
               is_tribal_eligible=excluded.is_tribal_eligible,
-              updated_at=datetime('now')
+              updated_at=CURRENT_TIMESTAMP
             """,
             (
                 str(opportunity_id),
@@ -179,7 +178,7 @@ def update_tribal_eligibility(conn: sqlite3.Connection, opportunity_id: str, tri
         conn.rollback()
         raise
 
-def update_grant_tags(conn: sqlite3.Connection, opportunity_id: str, ai_result: dict, job_id: int):
+def update_grant_tags(conn, opportunity_id: str, ai_result: dict, job_id: int):
     """
     Update the tags for a given opportunity.
     If job_id is -1, it means no job_id (for backlog ingestion)
@@ -191,7 +190,7 @@ def update_grant_tags(conn: sqlite3.Connection, opportunity_id: str, ai_result: 
                 INSERT INTO grant_tags (
                   opportunity_id, tag, tag_score, created_at
                 )
-                VALUES (?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s)
                 ON CONFLICT(opportunity_id, tag) DO UPDATE SET
                 tag_score=excluded.tag_score,
                 created_at=excluded.created_at
@@ -212,7 +211,7 @@ def update_grant_tags(conn: sqlite3.Connection, opportunity_id: str, ai_result: 
                 INSERT INTO grant_tags (
                   opportunity_id, tag, tag_score, created_at
                 )
-                VALUES (?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s)
                 ON CONFLICT(opportunity_id, tag) DO UPDATE SET
                 tag_score=excluded.tag_score,
                 created_at=excluded.created_at
@@ -232,13 +231,13 @@ def update_grant_tags(conn: sqlite3.Connection, opportunity_id: str, ai_result: 
             log(conn, job_id, f"Error updating grant tags: {e}", "ERROR")
         conn.rollback()
         raise
-def update_last_seen_at(opportunity_ids: list[str], conn: sqlite3.Connection, job_id: int) -> None:
+def update_last_seen_at(opportunity_ids: list[str], conn, job_id: int) -> None:
     """
     Update the last_seen_at column for a given opportunity id
     """
     try:
         for oid in opportunity_ids:
-            conn.execute("UPDATE grants SET last_seen_at = datetime('now') WHERE opportunity_id = ?", (oid,))
+            conn.execute("UPDATE grants SET last_seen_at = CURRENT_TIMESTAMP WHERE opportunity_id = %s", (oid,))
         conn.commit()
     except Exception as e:
         print(f"Error updating last_seen_at column: {e}")
@@ -246,18 +245,18 @@ def update_last_seen_at(opportunity_ids: list[str], conn: sqlite3.Connection, jo
         conn.rollback()
         raise
 
-def archive_old_grants(conn: sqlite3.Connection, job_id: int) -> int:
+def archive_old_grants(conn, job_id: int) -> int:
     try: 
         conn.execute("BEGIN")
         query = """
             SELECT COUNT(*) FROM grants
-            WHERE last_seen_at < datetime('now', '-5 days')
+            WHERE last_seen_at < CURRENT_TIMESTAMP - INTERVAL '5 days'
         """
         archived_grants = conn.execute(query).fetchone()[0]
         query = """
             UPDATE grants
             SET status = 'archived'
-            WHERE last_seen_at < datetime('now', '-5 days')
+            WHERE last_seen_at < CURRENT_TIMESTAMP - INTERVAL '5 days'
         """
         conn.execute(query)
         conn.commit()

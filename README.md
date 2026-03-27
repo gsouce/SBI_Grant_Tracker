@@ -13,15 +13,16 @@ Track Grants.gov opportunities relevant to Native American tribal governments, d
   - **`pipelines/gran_gov/quick_classification.py`** — heuristic relevance scoring (shared by daily loop and backlog; avoids circular imports with `backlog_ingestion`).
 
 - **`db/`**  
-  - **`db_util.py`** — `get_db_connection(test_mode=...)` → `grants.db` or `grants_test.db`.
+  - **`db_util.py`** — `get_db_connection(test_mode=...)` using `DATABASE_URL` (Postgres) or local sqlite fallback.
 
 - **`jobs/`**  
   Scheduled / orchestrated runs, pipeline run logging, and job-only DB tables. See [`jobs/README.md`](jobs/README.md).
 
-- **`grants.db`** (and optionally **`grants_test.db`**)  
-  SQLite databases (paths are relative to the project root when you run commands from there).
+- **Database**
+  - Production/deploy: Postgres via `DATABASE_URL`
+  - Local fallback: `grants.db` / `grants_test.db`
 
-## SQLite tables (domain)
+## Database tables (domain)
 
 Defined in `pipelines/gran_gov/init_tables.py` via `create_tables(conn)`:
 
@@ -30,7 +31,7 @@ Defined in `pipelines/gran_gov/init_tables.py` via `create_tables(conn)`:
 - **`grant_alerts`** — field-level alerts from snapshot comparison
 - **`grant_classifications`** — relevance tags / scores / reasoning (one row per opportunity, upserted on conflict)
 
-## SQLite tables (job orchestration)
+## Database tables (job orchestration)
 
 Defined in `jobs/init_tables.py` via `create_pipeline_tables(conn)`:
 
@@ -45,17 +46,25 @@ Use **dotted** module names with `python -m` (not slashes).
 |------|---------|
 | **Daily Grants.gov job** (creates pipeline tables, logs run, calls `grants_main`) | `python -m jobs.daily_jobs` |
 | **Backfill + classify** many opportunities | `python -m pipelines.gran_gov.backlog_ingestion` |
+| **Web app (dev/local)** | `python run.py` |
+| **Web app entrypoint (deploy-friendly)** | `python -m scripts.run_web` |
+| **Daily job entrypoint (deploy-friendly)** | `python -m scripts.run_daily_job` |
+| **Backlog job entrypoint (deploy-friendly)** | `python -m scripts.run_backlog_job` |
 
 Environment / config:
 
 - **Groq**: set `GROQ_API_KEY` (and optionally `GROQ_MODEL`) for AI classification paths.
+- **Postgres**: set `DATABASE_URL`.
+- **Provider switch**: `LLM_PROVIDER` = `groq` or `ollama`.
+- **Ollama**: `OLLAMA_BASE_URL` (default `http://localhost:11434`) and `OLLAMA_MODEL` (for example, `llama3.2:latest`).
+- **Backlog controls**: `MAX_GRANTS_PER_RUN`, `MAX_FAILURES_PER_RUN`, `MAX_RATE_LIMIT_RETRIES`, `RETRY_SLEEP_DEFAULT_SECONDS`.
 - Run commands from **`SBI_Grant_Tracker`** so imports like `pipelines.*` and `db.*` resolve.
 
 ## Keeping schema and code in sync
 
 If you change keys returned by `normalize_opportunity()` in `pipelines/gran_gov/ingestion_utils.py`, update:
 
-1. `pipelines/gran_gov/init_tables.py` (`grants` columns / `ensure_columns`)
+1. `pipelines/gran_gov/init_tables.py` (`grants` columns)
 2. `pipelines/gran_gov/ingestion_loop.py` (`upsert_grant_current` column list and parameters)
 
 ## Dependencies

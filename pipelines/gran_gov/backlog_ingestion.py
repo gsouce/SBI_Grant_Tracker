@@ -1,7 +1,6 @@
 """
 This module contains functions to ingest the backlog of grants from the grant.gov API.
 """
-import sqlite3
 import time
 from pipelines.gran_gov.main import get_opportunity_ids
 from pipelines.gran_gov.ingestion_loop import upsert_grant_current, insert_snapshot
@@ -9,12 +8,11 @@ from pipelines.gran_gov.ingestion_utils import fetch_opportunity, normalize_oppo
 from pipelines.gran_gov.ai_utils import ai_grant_tagging, ai_tribal_eligibility_check, get_llm_client, RateLimitError
 from pipelines.gran_gov.init_tables import create_tables
 from pipelines.gran_gov.quick_classification import quick_classification
-from jobs.log_utils import log
-from db.db_util import get_db_connection, is_test_mode
-from jobs.log_utils import create_pipeline_run
+from db.db_util import get_db_connection
+from config.runtime import get_runtime_settings
 
 
-def ingest_backlog(conn: sqlite3.Connection, test_mode: int = 0):
+def ingest_backlog(conn, test_mode: int = 0):
     """
     Ingests the backlog of grants from the grant.gov API.
     """
@@ -38,10 +36,11 @@ def ingest_backlog(conn: sqlite3.Connection, test_mode: int = 0):
 
     #3: Pull the details for each opportunity id and put into DB
     llm_client = get_llm_client()
+    settings = get_runtime_settings()
     i = 0
-    max_failures = 25
+    max_failures = settings.max_failures
     retry_count = 0
-    batch_size = 300
+    batch_size = settings.max_grants_per_run
     while i < len(new_ids) and i < batch_size:
         opportunity_id = new_ids[i]
         try:
@@ -98,14 +97,17 @@ def ingest_backlog(conn: sqlite3.Connection, test_mode: int = 0):
                 break
 
         except RateLimitError as e:
-            pause_s = float(getattr(e, "retry_seconds", 10.0) or 10.0)
+            pause_s = float(getattr(e, "retry_seconds", settings.retry_sleep_default_seconds) or settings.retry_sleep_default_seconds)
             print(f"Hit AI 429 rate limit. Pausing ingestion for {pause_s:.1f}s and retrying...")
-            if retry_count < 3:
+            if retry_count < settings.max_rate_limit_retries:
                 retry_count += 1
                 time.sleep(pause_s)
                 continue
             else:
-                print(f"Failed to ingest grant {opportunity_id} after 3 retries. Skipping...")
+                print(
+                    f"Failed to ingest grant {opportunity_id} after "
+                    f"{settings.max_rate_limit_retries} retries. Skipping..."
+                )
                 failed += 1
                 if failed > max_failures:
                     print(f"Failed to ingest {failed} grants after {max_failures} failures. Stopping ingestion...")
@@ -137,7 +139,8 @@ if __name__ == "__main__":
     print(f"Starting backlog ingestion at {start_time_str}")
     print("--------------------------------")
     print("Connecting to database...")
-    test_mode = 1 if is_test_mode() else 0
+    settings = get_runtime_settings()
+    test_mode = 1 if settings.test_mode else 0
     conn = get_db_connection(test_mode=bool(test_mode))
     print("Creating tables...")
     create_tables(conn)

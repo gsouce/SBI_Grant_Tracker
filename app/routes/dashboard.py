@@ -28,13 +28,13 @@ def view_run(run_id):
     run = conn.execute("""
         SELECT *
         FROM pipeline_runs
-        WHERE id = ?
+        WHERE id = %s
     """, (run_id,)).fetchone()
 
     logs = conn.execute("""
         SELECT *
         FROM pipeline_logs
-        WHERE job_id = ?
+        WHERE job_id = %s
         ORDER BY created_at ASC
     """, (run_id,)).fetchall()
 
@@ -66,7 +66,7 @@ def grant_tag_detail_page(tag):
     grant_tags = conn.execute("""
         SELECT *
         FROM grant_tags
-        WHERE tag = ?
+        WHERE tag = %s
     """, (tag,)).fetchall()
     return render_template("grant_tag_details.html", grant_tags=grant_tags)
 

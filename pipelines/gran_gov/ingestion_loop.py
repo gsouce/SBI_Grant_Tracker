@@ -1,6 +1,5 @@
 import hashlib
 import json
-import sqlite3
 from datetime import datetime, timezone
 import time
 from typing import Any, Optional
@@ -67,12 +66,12 @@ def _json_text(value: Any) -> Optional[str]:
     return json.dumps(value, ensure_ascii=False)
 
 
-def get_previous_snapshot(conn: sqlite3.Connection, opportunity_id: str):
+def get_previous_snapshot(conn, opportunity_id: str):
     row = conn.execute(
         """
         SELECT data_json, hash, fetched_at
         FROM grant_snapshots
-        WHERE opportunity_id = ?
+        WHERE opportunity_id = %s
         ORDER BY fetched_at DESC
         LIMIT 1
         """,
@@ -82,7 +81,7 @@ def get_previous_snapshot(conn: sqlite3.Connection, opportunity_id: str):
         return None
     return {"data_json": row[0], "hash": row[1], "fetched_at": row[2]}
 
-def insert_snapshot(conn: sqlite3.Connection, opportunity_id: str, normalized: dict[str, Any]):
+def insert_snapshot(conn, opportunity_id: str, normalized: dict[str, Any]):
     # Important: sort/unique list fields BEFORE hashing/compare to reduce false positives.
     # (Do this in your normalization function ideally.)
     can = canonical_json(normalized)
@@ -90,14 +89,15 @@ def insert_snapshot(conn: sqlite3.Connection, opportunity_id: str, normalized: d
 
     conn.execute(
         """
-        INSERT OR IGNORE INTO grant_snapshots (opportunity_id, fetched_at, data_json, hash)
-        VALUES (?, datetime('now'), ?, ?)
+        INSERT INTO grant_snapshots (opportunity_id, fetched_at, data_json, hash)
+        VALUES (%s, CURRENT_TIMESTAMP, %s, %s)
+        ON CONFLICT(opportunity_id, hash) DO NOTHING
         """,
         (opportunity_id, can, h),
     )
     return h
 
-def upsert_grant_current(conn: sqlite3.Connection, normalized: dict[str, Any]):
+def upsert_grant_current(conn, normalized: dict[str, Any]):
     # Assumes normalized has fields matching your schema.
     try:
         conn.execute(
@@ -109,7 +109,7 @@ def upsert_grant_current(conn: sqlite3.Connection, normalized: dict[str, Any]):
             award_floor, award_ceiling, estimated_funding, cost_sharing,
             category, eligibility_description, alns, eligibilities, funding_categories, description, attachments
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT(opportunity_id) DO UPDATE SET
             number=excluded.number,
             title=excluded.title,
@@ -132,7 +132,7 @@ def upsert_grant_current(conn: sqlite3.Connection, normalized: dict[str, Any]):
             funding_categories=excluded.funding_categories,
             description=excluded.description,
             attachments=excluded.attachments,
-            updated_at=datetime('now')
+            updated_at=CURRENT_TIMESTAMP
             """,
             (
                 _sql_text(normalized.get("id")),
@@ -163,11 +163,10 @@ def upsert_grant_current(conn: sqlite3.Connection, normalized: dict[str, Any]):
         print(f"Error upserting grant current: {e}")
         raise
 
-def daily_ingestion(conn: sqlite3.Connection, opportunity_ids: list[str], job_id: int):
+def daily_ingestion(conn, opportunity_ids: list[str], job_id: int):
     """
     takes in a list of opportunity ids and checks for any updates
     """
-    conn.execute("BEGIN")
     try:
         llm_client = get_llm_client()
         ingestion_count = 0
@@ -232,13 +231,14 @@ def daily_ingestion(conn: sqlite3.Connection, opportunity_ids: list[str], job_id
                 for a in alerts:
                     conn.execute(
                         """
-                        INSERT OR IGNORE INTO grant_alerts (
+                        INSERT INTO grant_alerts (
                         opportunity_id, alert_type, field,
                         old_value, new_value,
                         old_snapshot_hash, new_snapshot_hash,
                         fetched_at_old, fetched_at_new
                         )
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                        ON CONFLICT(opportunity_id, alert_type, field, old_snapshot_hash, new_snapshot_hash) DO NOTHING
                         """,
                         (
                             str(oid),

@@ -1,4 +1,3 @@
-import sqlite3
 import requests
 from pipelines.gran_gov.init_tables import create_tables
 from pipelines.gran_gov.ingestion_loop import daily_ingestion
@@ -43,7 +42,7 @@ def get_opportunity_ids(keywords: list[str] = [""], eligibilities: str = "",test
         opportunity_ids.extend([hit.get("id") for hit in data.get("oppHits", [])])
     return opportunity_ids
 
-def grants_main(conn: sqlite3.Connection, job_id: int, daily: bool = True) -> None:
+def grants_main(conn, job_id: int, daily: bool = True) -> None:
     print("Starting grant ingestion loop...")
     if daily: 
         print("Starting daily grant ingestion loop...")

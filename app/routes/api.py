@@ -43,7 +43,7 @@ def get_opportunity_by_id(opportunity_id):
     """
     conn = get_db_connection(test_mode=is_test_mode())
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM grants WHERE opportunity_id = ?", (opportunity_id,))
+    cursor.execute("SELECT * FROM grants WHERE opportunity_id = %s", (opportunity_id,))
     opportunity = _row_to_dict(cursor)
     if opportunity is None:
         return jsonify({}), 404

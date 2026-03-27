@@ -1,18 +1,20 @@
 from pipelines.gran_gov.main import grants_main
-from db.db_util import get_db_connection, is_test_mode
+from db.db_util import get_db_connection
 from jobs.init_tables import create_pipeline_tables
 from jobs.log_utils import create_pipeline_run
 from jobs.log_utils import update_pipeline_run
 from jobs.log_utils import log
 from datetime import datetime
+from config.runtime import get_runtime_settings
 
-if __name__ == "__main__":
+def run_daily_jobs() -> None:
     print("Starting daily jobs...")
     print("Connecting to database...")
     daily_start_time = datetime.now()
     daily_start_time_str = daily_start_time.strftime('%Y-%m-%d %H:%M:%S')
     print(f"Daily jobs started at {daily_start_time_str}")
-    conn = get_db_connection(test_mode=is_test_mode())
+    settings = get_runtime_settings()
+    conn = get_db_connection(test_mode=settings.test_mode)
     print("Creating tables...")
     create_pipeline_tables(conn)
     print("--------------------------------")
@@ -35,3 +37,7 @@ if __name__ == "__main__":
     print("Closing database connection...")
     conn.close()
     print("Daily jobs completed successfully.")
+
+
+if __name__ == "__main__":
+    run_daily_jobs()

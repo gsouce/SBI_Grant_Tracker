@@ -1,14 +1,13 @@
 """
 This module contains the tables for the pipeline runs
 """
-import sqlite3
-def create_pipeline_tables(conn: sqlite3.Connection):
+def create_pipeline_tables(conn):
     """
     Create the pipeline runs table
     """
-    conn.executescript("""
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS pipeline_runs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id BIGSERIAL PRIMARY KEY,
             pipeline_name TEXT,
             run_type TEXT,
             status TEXT,
@@ -21,7 +20,7 @@ def create_pipeline_tables(conn: sqlite3.Connection):
         );
 
         CREATE TABLE IF NOT EXISTS pipeline_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id BIGSERIAL PRIMARY KEY,
             job_id INTEGER,
             log_level TEXT,
             message TEXT,

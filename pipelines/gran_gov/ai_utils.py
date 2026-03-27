@@ -21,6 +21,7 @@ LLM_PROVIDER = (os.getenv("LLM_PROVIDER") or "groq").strip().lower()
 OLLAMA_BASE_URL = (os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434").strip().rstrip("/")
 # Typical tags look like `llama3.1:8b-instruct`. Adjust if yours differs.
 OLLAMA_MODEL = (os.getenv("OLLAMA_MODEL") or "llama3.2:latest").strip()
+DEFAULT_MODEL_LABEL = OLLAMA_MODEL if LLM_PROVIDER == "ollama" else (GROQ_MODEL or "unknown_model")
 
 def get_groq_client():
     if not GROQ_API_KEY:
@@ -106,6 +107,30 @@ def get_llm_client():
         return OllamaLLMClient()
     return GroqLLMClient()
 
+def _normalize_tribal_result(raw: dict) -> dict:
+    """
+    Guarantee required keys for tribal_eligibility inserts.
+    """
+    is_tribal_eligible = bool(raw.get("is_tribal_eligible", False))
+    score = raw.get("eligibility_score", 0)
+    try:
+        score = int(score)
+    except (TypeError, ValueError):
+        score = 0
+    score = max(0, min(100, score))
+    reasoning = raw.get("eligibility_reasoning")
+    if reasoning is None:
+        reasoning = ""
+    else:
+        reasoning = str(reasoning)
+    model = raw.get("model") or DEFAULT_MODEL_LABEL
+    return {
+        "model": str(model),
+        "is_tribal_eligible": is_tribal_eligible,
+        "eligibility_score": score,
+        "eligibility_reasoning": reasoning,
+    }
+
 
 def ai_grant_tagging(llm_client, grant):
     prompt = f"""
@@ -161,6 +186,7 @@ def ai_grant_tagging(llm_client, grant):
     try:
         return json.loads(content)
     except Exception as e:
+        print(content)
         print("Error parsing JSON in ai_grant_tagging:", e)
         return None
 
@@ -196,7 +222,11 @@ def ai_tribal_eligibility_check(llm_client, grant):
         print("No content returned from AI")
         return None
     try:
-        return json.loads(content)
+        parsed = json.loads(content)
+        if not isinstance(parsed, dict):
+            print("Unexpected JSON shape in ai_tribal_eligibility_check;")
+            return _normalize_tribal_result({})
+        return _normalize_tribal_result(parsed)
     except Exception as e:
         print("Error parsing JSON in ai_tribal_eligibility_check:", e)
         return None

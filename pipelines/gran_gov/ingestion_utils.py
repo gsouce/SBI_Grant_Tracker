@@ -140,10 +140,18 @@ def update_tribal_eligibility(conn: sqlite3.Connection, opportunity_id: str, tri
     Update the tribal eligibility for a given opportunity.
     """
     try:
-        is_tribal_eligible = tribal_eligibility.get("is_tribal_eligible")
-        eligibility_score = tribal_eligibility.get("eligibility_score")
+        is_tribal_eligible = bool(tribal_eligibility.get("is_tribal_eligible", False))
+        try:
+            eligibility_score = int(tribal_eligibility.get("eligibility_score", 0))
+        except (TypeError, ValueError):
+            eligibility_score = 0
+        eligibility_score = max(0, min(100, eligibility_score))
         eligibility_reasoning = tribal_eligibility.get("eligibility_reasoning")
-        model = tribal_eligibility.get("model")
+        if eligibility_reasoning is None:
+            eligibility_reasoning = ""
+        else:
+            eligibility_reasoning = str(eligibility_reasoning)
+        model = tribal_eligibility.get("model") or "unknown_model"
 
         conn.execute(
             """

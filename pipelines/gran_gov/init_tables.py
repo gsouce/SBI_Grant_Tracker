@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sqlite3
+
 SCHEMA_SQL = r"""
 
 -- Current "latest known" view of each opportunity
@@ -128,14 +130,25 @@ CREATE TABLE IF NOT EXISTS user_grant_activity (
 """
 
 
+def _schema_for_sqlite(sql: str) -> str:
+    """SQLite has no BIGSERIAL; use INTEGER PRIMARY KEY AUTOINCREMENT for surrogate ids."""
+    return sql.replace("BIGSERIAL PRIMARY KEY", "INTEGER PRIMARY KEY AUTOINCREMENT")
+
+
 def create_tables(conn) -> None:
     """
     Create all grant ingestion tables (idempotent).
 
-    Call this once after opening your sqlite3 connection.
+    SQLite: uses executescript (multiple statements). Postgres: one statement per execute().
     """
-
-    conn.execute(SCHEMA_SQL)
+    if isinstance(conn, sqlite3.Connection):
+        conn.executescript(_schema_for_sqlite(SCHEMA_SQL))
+    else:
+        for part in SCHEMA_SQL.split(";"):
+            part = part.strip()
+            if not part:
+                continue
+            conn.execute(part + ";")
     conn.commit()
 
 

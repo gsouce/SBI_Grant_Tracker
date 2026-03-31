@@ -3,8 +3,10 @@ import sqlite3
 
 try:
     import psycopg
+    from psycopg.rows import dict_row
 except ImportError:  # pragma: no cover
     psycopg = None
+    dict_row = None
 
 def is_test_mode() -> bool:
     """
@@ -23,7 +25,8 @@ def get_db_connection(test_mode: bool = False):
         if psycopg is None:
             raise RuntimeError("psycopg is required for DATABASE_URL connections.")
         print("Connecting to Postgres via DATABASE_URL")
-        return psycopg.connect(database_url)
+        # dict_row: rows behave like sqlite3.Row for template key access (row['col']).
+        return psycopg.connect(database_url, row_factory=dict_row)
 
     if test_mode:
         print("Connecting to grants_test.db")

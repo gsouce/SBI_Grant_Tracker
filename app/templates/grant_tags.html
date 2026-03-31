@@ -69,7 +69,7 @@
             {% for row in grant_tags %}
             <tr>
                 <td><a href="{{ url_for('dashboard.grant_tag_detail_page', tag=row['tag']) }}">{{ row['tag'] }}</a></td>
-                <td>{{ row['count'] }}</td>
+                <td>{{ row['tag_count'] }}</td>
             </tr>
             {% endfor %}
         </tbody>

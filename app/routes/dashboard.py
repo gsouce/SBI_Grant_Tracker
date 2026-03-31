@@ -49,10 +49,10 @@ def view_run(run_id):
 def grant_tags_page():
     conn = get_db_connection(test_mode=is_test_mode())
     grant_tags = conn.execute("""
-        SELECT tag, count(*) as count
+        SELECT tag, COUNT(*) AS tag_count
         FROM grant_tags
         GROUP BY tag
-        ORDER BY count DESC
+        ORDER BY tag_count DESC
     """).fetchall()
     total_grants = conn.execute("""
         SELECT COUNT(DISTINCT opportunity_id)

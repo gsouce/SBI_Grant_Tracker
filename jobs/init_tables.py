@@ -39,10 +39,13 @@ def _ensure_postgres_id_defaults(conn):
                 f"ALTER TABLE {table} ALTER COLUMN id "
                 f"SET DEFAULT nextval('{seq}'::regclass)"
             )
-            cur.execute(
-                f"SELECT setval(%s, COALESCE((SELECT MAX(id) FROM {table}), 0), true)",
-                (seq,),
-            )
+            cur.execute(f"SELECT COALESCE(MAX(id), 0) AS m FROM {table}")
+            m_row = cur.fetchone()
+            m = m_row["m"] if isinstance(m_row, dict) else m_row[0]
+            if m < 1:
+                cur.execute("SELECT setval(%s, 1, false)", (seq,))
+            else:
+                cur.execute("SELECT setval(%s, %s, true)", (seq, m))
             cur.execute(f"ALTER SEQUENCE {seq} OWNED BY {table}.id")
 
 

@@ -86,6 +86,9 @@ def insert_snapshot(conn, opportunity_id: str, normalized: dict[str, Any]):
     # (Do this in your normalization function ideally.)
     can = canonical_json(normalized)
     h = sha256_text(can)
+    if opportunity_id is None:
+        print(f"Opportunity id is None for normalized: {normalized}")
+        return h
 
     conn.execute(
         """

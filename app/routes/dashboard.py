@@ -1,7 +1,7 @@
 """
 Routes for the mission control dashboard
 """
-from flask import Blueprint, render_template
+from flask import Blueprint, abort, render_template
 from db.db_util import get_db_connection, is_test_mode, scalar_from_row
 
 dashboard_bp = Blueprint("dashboard", __name__)
@@ -30,6 +30,8 @@ def view_run(run_id):
         FROM pipeline_runs
         WHERE id = %s
     """, (run_id,)).fetchone()
+    if run is None:
+        abort(404)
 
     logs = conn.execute("""
         SELECT *

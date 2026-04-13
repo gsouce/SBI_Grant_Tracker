@@ -249,20 +249,23 @@ def update_last_seen_at(opportunity_ids: list[str], conn, job_id: int) -> None:
 def archive_old_grants(conn, job_id: int) -> int:
     try: 
         conn.execute("BEGIN")
-        query = """
+        # Cast for DBs where last_seen_at was added as TEXT (legacy) vs TIMESTAMP.
+        cutoff = "CURRENT_TIMESTAMP - INTERVAL '5 days'"
+        query = f"""
             SELECT COUNT(*) AS cnt FROM grants
-            WHERE last_seen_at < CURRENT_TIMESTAMP - INTERVAL '5 days'
+            WHERE last_seen_at::timestamptz < {cutoff}
         """
         archived_grants = scalar_from_row(conn.execute(query).fetchone())
-        query = """
+        query = f"""
             UPDATE grants
             SET status = 'archived'
-            WHERE last_seen_at < CURRENT_TIMESTAMP - INTERVAL '5 days'
+            WHERE last_seen_at::timestamptz < {cutoff}
         """
         conn.execute(query)
         conn.commit()
         return int(archived_grants)
     except Exception as e:
         print(f"Error archiving old grants: {e}")
+        conn.rollback()
         log(conn, job_id, f"Error archiving old grants: {e}", "ERROR")
         return 0

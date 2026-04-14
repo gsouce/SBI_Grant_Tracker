@@ -206,6 +206,26 @@
             color: #7dd3fc;
         }
 
+        .tag-total {
+            font-size: 0.75rem;
+            color: #cbd5e1;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .tag-score-lines {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .tag-score-line {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 6px 10px;
+        }
+
         .empty, .error {
             padding: 28px 20px;
             text-align: center;
@@ -253,7 +273,7 @@
                 <th>Title</th>
                 <th>Agency</th>
                 <th>Status</th>
-                <th id="th-tag" hidden>Tag match</th>
+                <th id="th-tag" hidden>Tags &amp; scores</th>
                 <th>ID</th>
             </tr>
         </thead>
@@ -286,17 +306,20 @@ function searchTextToTagsParam(text) {
         .join(",");
 }
 
-/** Dedupe tag-filter rows: API may return one row per matching tag; keep best total_score first. */
-function dedupeByOpportunity(rows) {
-    const seen = new Set();
-    const out = [];
-    for (const row of rows) {
-        const id = row.opportunity_id != null ? String(row.opportunity_id) : "";
-        if (seen.has(id)) continue;
-        seen.add(id);
-        out.push(row);
-    }
-    return out;
+/** Tag-filtered API returns one row per grant with `tag_scores` from the server. */
+function formatTagScoresCell(grant) {
+    const scores = Array.isArray(grant.tag_scores) ? grant.tag_scores : [];
+    const lines = scores
+        .map(
+            ({ tag, tag_score }) =>
+                `<div class="tag-score-line"><code>${escapeHtml(tag != null ? String(tag) : "")}</code> <span class="mono">${escapeHtml(tag_score != null ? String(tag_score) : "—")}</span></div>`
+        )
+        .join("");
+    const total =
+        grant.total_score != null
+            ? `<div class="tag-total">Combined score: ${escapeHtml(String(grant.total_score))}</div>`
+            : "";
+    return `<td class="tag-match">${total}<div class="tag-score-lines">${lines}</div></td>`;
 }
 
 async function loadGrants(tagParam) {
@@ -325,11 +348,7 @@ async function loadGrants(tagParam) {
             : "/api/opportunities";
         const res = await fetch(url);
         if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-        let data = await res.json();
-
-        if (hasTags) {
-            data = dedupeByOpportunity(data);
-        }
+        const data = await res.json();
 
         if (!data.length) {
             tbody.innerHTML = `<tr><td colspan="${hasTags ? 5 : 4}" class="empty">No grants found.</td></tr>`;
@@ -343,9 +362,7 @@ async function loadGrants(tagParam) {
             const status = grant.status != null ? String(grant.status) : "";
             const stClass = statusClass(status);
 
-            const tagCell = hasTags
-                ? `<td class="tag-match"><code>${escapeHtml(grant.tag != null ? String(grant.tag) : "")}</code> <span class="mono">(${escapeHtml(grant.tag_score != null ? String(grant.tag_score) : "—")})</span></td>`
-                : "";
+            const tagCell = hasTags ? formatTagScoresCell(grant) : "";
 
             const tr = document.createElement("tr");
             tr.innerHTML = `

@@ -101,7 +101,7 @@ def get_opportunities():
     Without ``tags``: up to 50 rows with opportunity_id, title, agency, status.
 
     With ``tags`` (comma-separated): one object per opportunity that matches any
-    listed tag, ordered by ``total_score`` descending. Each object includes
+    listed tag (case-insensitive), ordered by ``total_score`` descending. Each object includes
     ``total_score`` (sum of matching tag scores for that opportunity) and
     ``tag_scores``: all matching tags with their scores for that grant.
     """
@@ -109,6 +109,7 @@ def get_opportunities():
     tags_raw = request.args.get("tags", "")
     tag_list = [t.strip() for t in tags_raw.split(",") if t.strip()]
     if tag_list:
+        tag_list_lower = [t.lower() for t in tag_list]
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -128,13 +129,13 @@ def get_opportunities():
                     tag_score,
                     sum(tag_score) OVER (PARTITION BY opportunity_id) AS total_score
                 FROM grant_tags
-                WHERE tag = ANY(%s)
+                WHERE LOWER(tag) = ANY(%s)
             ) AS grant_tags
                 ON grants.opportunity_id = grant_tags.opportunity_id
             WHERE grant_tags.total_score > 0
             ORDER BY grant_tags.opportunity_id, grant_tags.tag
             """,
-            (tag_list,),
+            (tag_list_lower,),
         )
         raw = _rows_to_dicts(cursor)
         opportunities = _aggregate_tagged_opportunities(raw)

@@ -1,0 +1,102 @@
+"""
+API Routes used for user activity
+"""
+from flask import Blueprint, jsonify
+from flask import request
+from db.db_util import get_db_connection, is_test_mode
+from app.routes.api import _rows_to_dicts
+
+user_activity_bp = Blueprint("user_activity", __name__)
+
+@user_activity_bp.route("/api/user_activity/add_is_bookmarked_column")
+def add_is_bookmarked_column():
+    """
+    Add the is_bookmarked column to the user_grant_activity table
+    """
+    conn = get_db_connection(test_mode=is_test_mode())
+    cursor = conn.cursor()
+    cursor.execute("ALTER TABLE user_grant_activity ADD COLUMN IF NOT EXISTS is_bookmarked BOOLEAN NOT NULL DEFAULT FALSE")
+    conn.commit()
+    return jsonify({"message": "Is bookmarked column added successfully"})
+
+@user_activity_bp.route("/api/user_activity/update_user_grant_status")
+def mark_grant():
+    """
+    Log user activity for a grant by the current user
+    """
+    conn = get_db_connection(test_mode=is_test_mode())
+    user_id = request.args.get("user_id")
+    opportunity_id = request.args.get("opportunity_id")
+    status = request.args.get("status")
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO user_grant_activity (user_id, opportunity_id, status) VALUES (%s, %s, %s)", (user_id, opportunity_id, status))
+    conn.commit()
+    return jsonify({"message": "Grant marked successfully"})
+
+@user_activity_bp.route("/api/user_activity/bookmark_grant")
+def bookmark_grant():
+    """
+    Bookmark a grant for the current user
+    """
+    conn = get_db_connection(test_mode=is_test_mode())
+    user_id = request.args.get("user_id")
+    opportunity_id = request.args.get("opportunity_id")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE user_grant_activity SET is_bookmarked = TRUE WHERE user_id = %s AND opportunity_id = %s", (user_id, opportunity_id))
+    conn.commit()
+    return jsonify({"message": "Grant bookmarked successfully"})
+
+@user_activity_bp.route("/api/user_activity/unbookmark_grant")
+def unbookmark_grant():
+    """
+    Unbookmark a grant for the current user
+    """
+    conn = get_db_connection(test_mode=is_test_mode())
+    user_id = request.args.get("user_id")
+    opportunity_id = request.args.get("opportunity_id")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE user_grant_activity SET is_bookmarked = FALSE WHERE user_id = %s AND opportunity_id = %s", (user_id, opportunity_id))
+    conn.commit()
+    return jsonify({"message": "Grant unbookmarked successfully"})
+
+@user_activity_bp.route("/api/user_activity/get_bookmarked_grants")
+def get_bookmarked_grants():
+    """
+    Get all bookmarked grants for the current user
+    """
+    conn = get_db_connection(test_mode=is_test_mode())
+    user_id = request.args.get("user_id")
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM user_grant_activity WHERE user_id = %s AND status = 'bookmark'", (user_id,))
+    bookmarked_grants = _rows_to_dicts(cursor)
+    return jsonify(bookmarked_grants)
+
+@user_activity_bp.route("/api/user_activity/get_user_alerts")
+def get_user_alerts():
+    """
+    Get all alerts for the current user
+    """
+    conn = get_db_connection(test_mode=is_test_mode())
+    user_id = request.args.get("user_id")
+    cursor = conn.cursor()
+    cursor.execute("""
+    SELECT 
+        user_grant_activity.user_id,
+        user_grant_activity.opportunity_id,
+        user_grant_activity.status,
+        user_grant_activity.created_at,
+        grant_alerts.alert_type,
+        grant_alerts.field,
+        grant_alerts.old_value,
+        grant_alerts.new_value,
+        grant_alerts.detected_at
+    FROM user_grant_activity 
+    INNER JOIN grant_alerts 
+        ON user_grant_activity.opportunity_id = grant_alerts.opportunity_id
+    WHERE user_grant_activity.user_id = %s 
+    and user_grant_activity.is_bookmarked = TRUE
+    order by grant_alerts.detected_at desc
+    limit 50
+    """, (user_id,))
+    alerts = _rows_to_dicts(cursor)
+    return jsonify(alerts)

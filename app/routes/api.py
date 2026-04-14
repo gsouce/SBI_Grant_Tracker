@@ -1,5 +1,5 @@
 """
-API Routes used by the frontend/UI
+API Routes used for data retrieval
 """
 from flask import Blueprint, jsonify
 from flask import request

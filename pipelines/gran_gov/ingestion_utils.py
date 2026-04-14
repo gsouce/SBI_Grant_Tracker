@@ -91,8 +91,8 @@ def normalize_opportunity(data: dict) -> dict:
         "id": data.get("opportunityId"),
         "number": data.get("opportunityNumber"),
         "title": data.get("opportunityTitle"),
-        "agency": synopsis.get("agencyName"),
-        "agency_code": data.get("owningAgencyCode"),
+        "agency": synopsis.get("agencyDetails").get("agencyName") if synopsis.get("agencyDetails") is not None else synopsis.get("agencyName"),
+        "agency_code": synopsis.get("agencyDetails").get("agencyCode") if synopsis.get("agencyDetails") is not None else data.get("owningAgencyCode"),
 
         # Status & dates
         "status": "posted" if syn_avail else "forecasted",

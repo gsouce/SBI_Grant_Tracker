@@ -34,20 +34,51 @@ def _row_to_dict(cursor):
 @api_bp.route("/api/opportunities")
 def get_opportunities():
     """
-    Get opportunities from the database (grants table)
+    Get opportunities from the database (grants table), sorted by tags provided in the request
     Returns:
-        list of opportunities
+        list of opportunities, sorted by tags provided in the request
     """
     conn = get_db_connection(test_mode=is_test_mode())
-    cursor = conn.cursor()
-    cursor.execute("SELECT opportunity_id, title, agency, status FROM grants limit 50")
-    opportunities = _rows_to_dicts(cursor)
+    tags_raw = request.args.get("tags", "")
+    tag_list = [t.strip() for t in tags_raw.split(",") if t.strip()]
+    if tag_list:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT
+                grants.opportunity_id,
+                grants.title,
+                grants.agency,
+                grants.status,
+                grant_tags.tag,
+                grant_tags.tag_score,
+                grant_tags.total_score
+            FROM grants
+            INNER JOIN (
+                SELECT
+                    opportunity_id,
+                    tag,
+                    tag_score,
+                    sum(tag_score) OVER (PARTITION BY opportunity_id) AS total_score
+                FROM grant_tags
+                WHERE tag = ANY(%s)
+            ) AS grant_tags
+                ON grants.opportunity_id = grant_tags.opportunity_id
+            ORDER BY grant_tags.total_score DESC
+            """,
+            (tag_list,),
+        )
+        opportunities = _rows_to_dicts(cursor)
+    else:
+        cursor = conn.cursor()
+        cursor.execute("SELECT opportunity_id, title, agency, status FROM grants limit 50")
+        opportunities = _rows_to_dicts(cursor)
     return jsonify(opportunities)
 
 @api_bp.route("/api/opportunities/<opportunity_id>")
 def get_opportunity_by_id(opportunity_id):
     """
-    Get an opportunity from the database (grants table)
+    Get an opportunity by id from the database (grants table)
     Returns:
         opportunity
     """
@@ -62,12 +93,12 @@ def get_opportunity_by_id(opportunity_id):
 @api_bp.route("/api/alerts")
 def get_alerts():
     """
-    Get alerts from the database (grant_alerts table)
+    Get 50 most recent alerts from the database (grant_alerts table)
     Returns:
         list of alerts
     """
     conn = get_db_connection(test_mode=is_test_mode())
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM grant_alerts limit 50")
+    cursor.execute("SELECT * FROM grant_alerts order by detected_at desc limit 50")
     alerts = _rows_to_dicts(cursor)
     return jsonify(alerts)

@@ -82,6 +82,11 @@ def grants_page():
 def grant_detail_page(opportunity_id):
     return render_template("grant_detail.html", opportunity_id=opportunity_id)
 
+
+@dashboard_bp.route("/grants/search")
+def grants_search_page():
+    return render_template("grants_search.html")
+
 @dashboard_bp.route("/alerts")
 def alerts_page():
     return render_template("alerts.html")

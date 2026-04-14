@@ -11,8 +11,6 @@
             color: #e2e8f0;
             padding: 20px;
             line-height: 1.45;
-            max-width: 960px;
-            margin: 0 auto;
         }
 
         h1 {
@@ -27,62 +25,144 @@
             font-size: 0.95rem;
         }
 
-        .nav-row {
-            margin-bottom: 24px;
+        h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 20px 0 10px 0;
         }
 
-        .nav-row a {
+        a {
             color: #38bdf8;
             text-decoration: none;
         }
 
-        .nav-row a:hover {
+        a:hover {
             text-decoration: underline;
         }
 
-        #grants-list {
-            list-style: none;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
+        .nav-links {
+            margin-bottom: 20px;
         }
 
-        #grants-list li {
-            margin: 0;
-        }
-
-        .grant-card {
-            display: block;
-            padding: 16px 18px;
+        .search-panel {
             background: #1e293b;
             border: 1px solid #334155;
-            border-radius: 8px;
-            text-decoration: none;
-            color: inherit;
-            transition: background 0.15s ease, border-color 0.15s ease;
+            border-radius: 0;
+            padding: 14px 16px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            gap: 12px 16px;
         }
 
-        .grant-card:hover {
-            background: #334155;
+        .search-panel label {
+            display: block;
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .search-field {
+            flex: 1 1 220px;
+            min-width: 180px;
+        }
+
+        .search-field input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 10px 12px;
+            border: 1px solid #334155;
+            border-radius: 0;
+            background: #020617;
+            color: #e2e8f0;
+            font-size: 0.95rem;
+        }
+
+        .search-field input::placeholder {
+            color: #64748b;
+        }
+
+        .search-field input:focus {
+            outline: none;
+            border-color: #38bdf8;
+        }
+
+        button.search-btn {
+            padding: 10px 20px;
+            border: 1px solid #334155;
+            border-radius: 0;
+            background: #020617;
+            color: #38bdf8;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        button.search-btn:hover {
+            background: #1e293b;
             border-color: #475569;
         }
 
-        .grant-card-title {
-            font-weight: 600;
-            color: #f1f5f9;
-            margin-bottom: 6px;
-            font-size: 1.05rem;
+        button.search-btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
         }
 
-        .grant-card-meta {
-            font-size: 0.875rem;
+        .hint {
+            width: 100%;
+            flex-basis: 100%;
+            font-size: 0.8rem;
+            color: #64748b;
+            margin: 0;
+        }
+
+        .filter-note {
+            font-size: 0.85rem;
             color: #94a3b8;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px 16px;
-            align-items: center;
+            margin: -8px 0 16px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #1e293b;
+        }
+
+        th, td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #334155;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #020617;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+
+        tbody tr:hover {
+            background: #334155;
+        }
+
+        .title-cell a {
+            font-weight: 600;
+            color: #f1f5f9;
+        }
+
+        .title-cell a:hover {
+            color: #38bdf8;
+        }
+
+        .mono {
+            font-size: 0.8rem;
+            color: #94a3b8;
         }
 
         .status-pill {
@@ -113,30 +193,74 @@
             color: #fbbf24;
         }
 
+        .tag-match {
+            font-size: 0.8rem;
+            color: #94a3b8;
+        }
+
+        .tag-match code {
+            background: #020617;
+            padding: 2px 6px;
+            border: 1px solid #334155;
+            font-size: 0.75rem;
+            color: #7dd3fc;
+        }
+
         .empty, .error {
             padding: 28px 20px;
             text-align: center;
             color: #94a3b8;
             background: #1e293b;
             border: 1px solid #334155;
-            border-radius: 8px;
         }
 
         .error {
             color: #f87171;
+        }
+
+        #results-wrap.loading table {
+            opacity: 0.45;
         }
     </style>
 </head>
 <body>
 
 <h1>Grants</h1>
-<p class="subhead">Browse opportunities from the database.</p>
+<p class="subhead">Browse opportunities from the database. Search matches grant tags (words are combined as a tag filter).</p>
 
-<p class="nav-row">
-    <a href="/dashboard">← Mission Control</a>
-</p>
+<div class="nav-links">
+    <h2><a href="/dashboard">← Mission Control</a></h2>
+</div>
 
-<ul id="grants-list"></ul>
+<form class="search-panel" id="search-form" action="#" method="get">
+    <div class="search-field">
+        <label for="tag-search">Search by tags</label>
+        <input type="search" id="tag-search" name="q" placeholder="e.g. education housing infrastructure" autocomplete="off">
+    </div>
+    <div>
+        <label style="visibility:hidden">Submit</label>
+        <button type="submit" class="search-btn" id="search-btn">Search</button>
+    </div>
+    <p class="hint">Enter words separated by spaces; they are sent to the API as comma-separated tags (exact tag names in your database).</p>
+</form>
+
+<p class="filter-note" id="filter-note" hidden></p>
+
+<div id="results-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Agency</th>
+                <th>Status</th>
+                <th id="th-tag" hidden>Tag match</th>
+                <th>ID</th>
+            </tr>
+        </thead>
+        <tbody id="grants-tbody">
+        </tbody>
+    </table>
+</div>
 
 <script>
 function escapeHtml(s) {
@@ -153,45 +277,106 @@ function statusClass(status) {
     return "unknown";
 }
 
-async function loadGrants() {
-    const list = document.getElementById("grants-list");
-    list.innerHTML = "";
+/** Turn user input into the comma-separated tag list the API expects. */
+function searchTextToTagsParam(text) {
+    return text
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .join(",");
+}
+
+/** Dedupe tag-filter rows: API may return one row per matching tag; keep best total_score first. */
+function dedupeByOpportunity(rows) {
+    const seen = new Set();
+    const out = [];
+    for (const row of rows) {
+        const id = row.opportunity_id != null ? String(row.opportunity_id) : "";
+        if (seen.has(id)) continue;
+        seen.add(id);
+        out.push(row);
+    }
+    return out;
+}
+
+async function loadGrants(tagParam) {
+    const tbody = document.getElementById("grants-tbody");
+    const wrap = document.getElementById("results-wrap");
+    const btn = document.getElementById("search-btn");
+    const note = document.getElementById("filter-note");
+    const thTag = document.getElementById("th-tag");
+
+    tbody.innerHTML = "";
+    wrap.classList.add("loading");
+    btn.disabled = true;
+
+    const hasTags = Boolean(tagParam && tagParam.length);
+    thTag.hidden = !hasTags;
+    if (hasTags) {
+        note.hidden = false;
+        note.textContent = "Filtering by tags: " + tagParam.split(",").map((t) => t.trim()).filter(Boolean).join(", ");
+    } else {
+        note.hidden = true;
+    }
 
     try {
-        const res = await fetch("/api/opportunities");
+        const url = hasTags
+            ? "/api/opportunities?tags=" + encodeURIComponent(tagParam)
+            : "/api/opportunities";
+        const res = await fetch(url);
         if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-        const data = await res.json();
+        let data = await res.json();
+
+        if (hasTags) {
+            data = dedupeByOpportunity(data);
+        }
 
         if (!data.length) {
-            list.innerHTML = `<li class="empty">No grants found.</li>`;
+            tbody.innerHTML = `<tr><td colspan="${hasTags ? 5 : 4}" class="empty">No grants found.</td></tr>`;
             return;
         }
 
-        data.forEach(grant => {
+        data.forEach((grant) => {
             const oid = grant.opportunity_id != null ? String(grant.opportunity_id) : "";
             const title = grant.title != null ? String(grant.title) : "(no title)";
+            const agency = grant.agency != null ? String(grant.agency) : "—";
             const status = grant.status != null ? String(grant.status) : "";
             const stClass = statusClass(status);
 
-            const li = document.createElement("li");
-            li.innerHTML = `
-                <a class="grant-card" href="/grants/${encodeURIComponent(oid)}">
-                    <div class="grant-card-title">${escapeHtml(title)}</div>
-                    <div class="grant-card-meta">
-                        <span class="status-pill ${stClass}">${escapeHtml(status) || "—"}</span>
-                        <span>ID ${escapeHtml(oid)}</span>
-                    </div>
-                </a>
+            const tagCell = hasTags
+                ? `<td class="tag-match"><code>${escapeHtml(grant.tag != null ? String(grant.tag) : "")}</code> <span class="mono">(${escapeHtml(grant.tag_score != null ? String(grant.tag_score) : "—")})</span></td>`
+                : "";
+
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td class="title-cell"><a href="/grants/${encodeURIComponent(oid)}">${escapeHtml(title)}</a></td>
+                <td>${escapeHtml(agency)}</td>
+                <td><span class="status-pill ${stClass}">${escapeHtml(status) || "—"}</span></td>
+                ${tagCell}
+                <td class="mono">${escapeHtml(oid)}</td>
             `;
-            list.appendChild(li);
+            tbody.appendChild(tr);
         });
     } catch (err) {
-        list.innerHTML = `<li class="error">Failed to load grants.</li>`;
+        const cols = hasTags ? 5 : 4;
+        tbody.innerHTML = `<tr><td colspan="${cols}" class="error">Failed to load grants.</td></tr>`;
         console.error(err);
+    } finally {
+        wrap.classList.remove("loading");
+        btn.disabled = false;
     }
 }
 
-loadGrants();
+const form = document.getElementById("search-form");
+const input = document.getElementById("tag-search");
+
+form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const param = searchTextToTagsParam(input.value);
+    loadGrants(param);
+});
+
+loadGrants("");
 </script>
 
 </body>

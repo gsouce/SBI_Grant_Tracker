@@ -85,3 +85,8 @@ def grant_detail_page(opportunity_id):
 @dashboard_bp.route("/alerts")
 def alerts_page():
     return render_template("alerts.html")
+
+
+@dashboard_bp.route("/portal")
+def client_portal_page():
+    return render_template("client_portal.html")

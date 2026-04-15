@@ -98,7 +98,10 @@ def get_opportunities():
     """
     List opportunities from the grants table.
 
-    Without ``tags``: up to 50 rows with opportunity_id, title, agency, status.
+    Without ``tags`` or ``q``: up to 50 rows with opportunity_id, title, agency, status.
+
+    With ``q``: title/agency substring match (case-insensitive), up to 50 rows, ordered by
+    posted_date then title.
 
     With ``tags`` (comma-separated): one object per opportunity that matches any
     listed tag (case-insensitive), ordered by ``total_score`` descending. Each object includes
@@ -108,6 +111,7 @@ def get_opportunities():
     conn = get_db_connection(test_mode=is_test_mode())
     tags_raw = request.args.get("tags", "")
     tag_list = [t.strip() for t in tags_raw.split(",") if t.strip()]
+    q_raw = (request.args.get("q") or "").strip()
     if tag_list:
         tag_list_lower = [t.lower() for t in tag_list]
         cursor = conn.cursor()
@@ -139,6 +143,20 @@ def get_opportunities():
         )
         raw = _rows_to_dicts(cursor)
         opportunities = _aggregate_tagged_opportunities(raw)
+    elif q_raw:
+        cursor = conn.cursor()
+        pattern = f"%{q_raw}%"
+        cursor.execute(
+            """
+            SELECT opportunity_id, title, agency, status
+            FROM grants
+            WHERE title ILIKE %s OR agency ILIKE %s
+            ORDER BY posted_date DESC NULLS LAST, title
+            LIMIT 50
+            """,
+            (pattern, pattern),
+        )
+        opportunities = _rows_to_dicts(cursor)
     else:
         cursor = conn.cursor()
         cursor.execute("SELECT opportunity_id, title, agency, status FROM grants limit 50")

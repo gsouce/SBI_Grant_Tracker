@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Client portal (demo)</title>
+    <style>
+        :root {
+            --bg: #0c1222;
+            --panel: #151d2e;
+            --border: #2a3548;
+            --text: #e8eaef;
+            --muted: #94a3b8;
+            --accent: #c9a227;
+            --accent-dim: rgba(201, 162, 39, 0.15);
+            --link: #7dd3fc;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 24px 20px 40px;
+            line-height: 1.45;
+        }
+
+        .hero {
+            max-width: 920px;
+            margin-bottom: 28px;
+            border-left: 3px solid var(--accent);
+            padding-left: 20px;
+        }
+
+        .hero h1 {
+            font-family: Georgia, "Times New Roman", Times, serif;
+            font-weight: 600;
+            font-size: clamp(1.65rem, 3vw, 2.15rem);
+            letter-spacing: -0.02em;
+            margin: 0 0 12px 0;
+            color: #f8fafc;
+        }
+
+        .hero .tagline {
+            color: var(--accent);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            margin-bottom: 8px;
+        }
+
+        .hero p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.98rem;
+            max-width: 52ch;
+        }
+
+        .top-bar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px 20px;
+            margin-bottom: 22px;
+            padding: 12px 16px;
+            background: var(--panel);
+            border: 1px solid var(--border);
+        }
+
+        .top-bar label {
+            font-size: 0.75rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .top-bar input[type="text"] {
+            min-width: 220px;
+            padding: 8px 10px;
+            border: 1px solid var(--border);
+            background: #0a0f18;
+            color: var(--text);
+            font-family: ui-monospace, monospace;
+            font-size: 0.85rem;
+        }
+
+        .top-bar button {
+            padding: 8px 14px;
+            border: 1px solid var(--border);
+            background: var(--accent-dim);
+            color: var(--accent);
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        .top-bar button:hover {
+            border-color: var(--accent);
+        }
+
+        .nav-links a {
+            color: var(--link);
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+
+        .nav-links a:hover {
+            text-decoration: underline;
+        }
+
+        .portal-grid {
+            display: grid;
+            gap: 18px;
+            max-width: 1400px;
+        }
+
+        @media (max-width: 960px) {
+            .portal-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (min-width: 961px) {
+            .portal-grid {
+                grid-template-columns: 1.15fr 0.85fr;
+                grid-template-rows: auto auto auto;
+            }
+            .panel-search {
+                grid-column: 1;
+                grid-row: 1 / span 2;
+            }
+            .panel-bookmarks {
+                grid-column: 2;
+                grid-row: 1;
+            }
+            .panel-alerts {
+                grid-column: 2;
+                grid-row: 2;
+            }
+            .panel-checklist {
+                grid-column: 1 / -1;
+                grid-row: 3;
+            }
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            padding: 16px 18px;
+            min-height: 120px;
+        }
+
+        .panel h2 {
+            margin: 0 0 14px 0;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #cbd5e1;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .search-form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px 16px;
+            align-items: flex-end;
+            margin-bottom: 14px;
+        }
+
+        .field {
+            flex: 1 1 200px;
+            min-width: 160px;
+        }
+
+        .field label {
+            display: block;
+            font-size: 0.72rem;
+            color: var(--muted);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .field input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            background: #0a0f18;
+            color: var(--text);
+            font-size: 0.9rem;
+        }
+
+        .field input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        button.primary {
+            padding: 10px 18px;
+            border: 1px solid var(--accent);
+            background: var(--accent-dim);
+            color: var(--accent);
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        button.primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .hint {
+            font-size: 0.78rem;
+            color: var(--muted);
+            margin: 0 0 12px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+        }
+
+        th, td {
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #0a0f18;
+            color: var(--muted);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        tbody tr:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .mono {
+            font-family: ui-monospace, monospace;
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        a {
+            color: var(--link);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .btn-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        button.sm {
+            padding: 4px 10px;
+            font-size: 0.78rem;
+            border: 1px solid var(--border);
+            background: #0a0f18;
+            color: var(--text);
+            cursor: pointer;
+        }
+
+        button.sm.bookmark-on {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-dim);
+        }
+
+        .bookmark-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            max-height: 320px;
+            overflow-y: auto;
+        }
+
+        .bookmark-list li {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+        }
+
+        .bookmark-list li:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .bookmark-list li.active {
+            border-left: 3px solid var(--accent);
+            padding-left: 9px;
+            background: var(--accent-dim);
+        }
+
+        .bookmark-list .title {
+            font-weight: 600;
+            font-size: 0.88rem;
+            margin-bottom: 4px;
+        }
+
+        .alerts-scroll {
+            max-height: 260px;
+            overflow-y: auto;
+            font-size: 0.82rem;
+        }
+
+        .alert-item {
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .alert-item .meta {
+            color: var(--muted);
+            font-size: 0.75rem;
+            margin-top: 4px;
+        }
+
+        .checklist-add {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .checklist-add input {
+            flex: 1;
+            padding: 8px 10px;
+            border: 1px solid var(--border);
+            background: #0a0f18;
+            color: var(--text);
+        }
+
+        .checklist-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .checklist-row input[type="checkbox"] {
+            margin-top: 4px;
+        }
+
+        .empty, .error {
+            padding: 16px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.88rem;
+        }
+
+        .error {
+            color: #f87171;
+        }
+
+        .filter-row {
+            margin-bottom: 10px;
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+
+        .filter-row input {
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="hero">
+    <div class="tagline">Grant workspace</div>
+    <h1>Capital, policy, and opportunity—aligned in one place.</h1>
+    <p>
+        This demo previews a future client portal: search federal opportunities, bookmark what matters,
+        watch for changes, and track submission readiness with simple checklists.
+    </p>
+</div>
+
+<div class="top-bar">
+    <div class="nav-links"><a href="/dashboard">← Mission Control</a> · <a href="/grants">Grants list</a></div>
+    <div style="flex:1"></div>
+    <div>
+        <label for="demo-user-id">Demo user id</label><br>
+        <input type="text" id="demo-user-id" readonly aria-readonly="true">
+    </div>
+    <button type="button" id="btn-reset-user">New demo id</button>
+</div>
+
+<div class="portal-grid">
+    <section class="panel panel-search">
+        <h2>Search grants</h2>
+        <form class="search-form" id="search-form" action="#" method="get">
+            <div class="field">
+                <label for="tag-search">Tags</label>
+                <input type="search" id="tag-search" placeholder="e.g. education housing" autocomplete="off">
+            </div>
+            <div class="field">
+                <label for="text-search">Title / agency</label>
+                <input type="search" id="text-search" placeholder="Keyword in title or agency" autocomplete="off">
+            </div>
+            <div>
+                <label style="visibility:hidden">Go</label><br>
+                <button type="submit" class="primary" id="search-btn">Search</button>
+            </div>
+        </form>
+        <p class="hint">If you enter tags, tag search is used (same as the main grants page). Otherwise, title/agency search runs when that field is filled; leave both empty for the top 50 opportunities.</p>
+        <div id="results-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Agency</th>
+                        <th>Status</th>
+                        <th>Bookmark</th>
+                    </tr>
+                </thead>
+                <tbody id="grants-tbody"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel panel-bookmarks">
+        <h2>Bookmarked</h2>
+        <ul class="bookmark-list" id="bookmark-list"></ul>
+        <p class="empty" id="bookmark-empty" hidden>No bookmarks yet. Save grants from search.</p>
+    </section>
+
+    <section class="panel panel-alerts">
+        <h2>Alerts (bookmarked grants)</h2>
+        <div class="filter-row">
+            <label><input type="checkbox" id="filter-alerts-active"> Only selected grant</label>
+        </div>
+        <div class="alerts-scroll" id="alerts-container"></div>
+        <p class="empty" id="alerts-empty" hidden>No alerts for your bookmarks yet.</p>
+    </section>
+
+    <section class="panel panel-checklist">
+        <h2>Checklist</h2>
+        <p class="hint" id="checklist-hint">Select a bookmarked grant to add or update checklist items.</p>
+        <div id="checklist-active" hidden>
+            <p class="mono" id="checklist-opp-label"></p>
+            <form class="checklist-add" id="checklist-add-form">
+                <input type="text" id="new-item-name" placeholder="New checklist item" maxlength="500" required>
+                <button type="submit" class="primary">Add</button>
+            </form>
+            <div id="checklist-items"></div>
+        </div>
+    </section>
+</div>
+
+<script>
+const LS_KEY = "portal_demo_user_id";
+
+function escapeHtml(s) {
+    if (s == null || s === "") return "";
+    const div = document.createElement("div");
+    div.textContent = String(s);
+    return div.innerHTML;
+}
+
+function getUserId() {
+    let id = localStorage.getItem(LS_KEY);
+    if (!id) {
+        id = crypto.randomUUID();
+        localStorage.setItem(LS_KEY, id);
+    }
+    return id;
+}
+
+function refreshUserIdField() {
+    document.getElementById("demo-user-id").value = getUserId();
+}
+
+document.getElementById("btn-reset-user").addEventListener("click", () => {
+    localStorage.setItem(LS_KEY, crypto.randomUUID());
+    refreshUserIdField();
+    bookmarkedOppIds.clear();
+    activeOppId = null;
+    loadAll();
+});
+
+function searchTextToTagsParam(text) {
+    return text.trim().split(/\s+/).filter(Boolean).join(",");
+}
+
+let bookmarkedOppIds = new Set();
+let activeOppId = null;
+let allAlerts = [];
+
+async function fetchBookmarkedIds() {
+    const uid = getUserId();
+    const res = await fetch("/api/user_activity/get_bookmarked_grants?user_id=" + encodeURIComponent(uid));
+    if (!res.ok) throw new Error("bookmarks");
+    const rows = await res.json();
+    bookmarkedOppIds = new Set(
+        rows.map((r) => (r.opportunity_id != null ? String(r.opportunity_id) : "")).filter(Boolean)
+    );
+}
+
+async function fetchGrantTitle(oid) {
+    const res = await fetch("/api/opportunities/" + encodeURIComponent(oid));
+    if (!res.ok) return null;
+    const g = await res.json();
+    return g.title != null ? String(g.title) : null;
+}
+
+async function renderBookmarks() {
+    const uid = getUserId();
+    const res = await fetch("/api/user_activity/get_bookmarked_grants?user_id=" + encodeURIComponent(uid));
+    const list = document.getElementById("bookmark-list");
+    const empty = document.getElementById("bookmark-empty");
+    list.innerHTML = "";
+    if (!res.ok) {
+        list.innerHTML = "<li class='error'>Could not load bookmarks.</li>";
+        empty.hidden = true;
+        return;
+    }
+    const rows = await res.json();
+    if (!rows.length) {
+        empty.hidden = false;
+        return;
+    }
+    empty.hidden = true;
+    const titles = await Promise.all(
+        rows.map((r) => fetchGrantTitle(String(r.opportunity_id)).then((t) => ({ r, title: t })))
+    );
+    titles.forEach(({ r, title }) => {
+        const oid = String(r.opportunity_id);
+        const li = document.createElement("li");
+        if (activeOppId === oid) li.classList.add("active");
+        const display = title != null ? title : "(untitled)";
+        li.innerHTML =
+            "<div class='title'>" +
+            escapeHtml(display) +
+            "</div>" +
+            "<div class='mono'>" +
+            escapeHtml(oid) +
+            "</div>";
+        li.addEventListener("click", async () => {
+            activeOppId = oid;
+            await renderBookmarks();
+            renderAlerts();
+            await renderChecklistPanel();
+        });
+        list.appendChild(li);
+    });
+}
+
+function renderAlerts() {
+    const container = document.getElementById("alerts-container");
+    const empty = document.getElementById("alerts-empty");
+    const onlyActive = document.getElementById("filter-alerts-active").checked;
+    const filterOid = onlyActive && activeOppId ? activeOppId : null;
+    const items = filterOid
+        ? allAlerts.filter((a) => String(a.opportunity_id) === filterOid)
+        : allAlerts;
+    container.innerHTML = "";
+    if (!items.length) {
+        empty.hidden = false;
+        return;
+    }
+    empty.hidden = true;
+    items.forEach((a) => {
+        const div = document.createElement("div");
+        div.className = "alert-item";
+        const oid = a.opportunity_id != null ? String(a.opportunity_id) : "";
+        div.innerHTML =
+            "<strong>" +
+            escapeHtml(a.alert_type || "") +
+            "</strong> · " +
+            escapeHtml(a.field || "") +
+            "<div class='meta'>" +
+            escapeHtml(oid) +
+            " · " +
+            escapeHtml(a.detected_at != null ? String(a.detected_at) : "") +
+            "</div>" +
+            "<div>" +
+            escapeHtml(String(a.old_value ?? "")) +
+            " → " +
+            escapeHtml(String(a.new_value ?? "")) +
+            "</div>";
+        container.appendChild(div);
+    });
+}
+
+async function loadAlerts() {
+    const uid = getUserId();
+    const res = await fetch("/api/user_activity/get_user_alerts?user_id=" + encodeURIComponent(uid));
+    if (!res.ok) {
+        allAlerts = [];
+    } else {
+        allAlerts = await res.json();
+    }
+    renderAlerts();
+}
+
+document.getElementById("filter-alerts-active").addEventListener("change", renderAlerts);
+
+async function renderChecklistPanel() {
+    const hint = document.getElementById("checklist-hint");
+    const wrap = document.getElementById("checklist-active");
+    const label = document.getElementById("checklist-opp-label");
+    const itemsEl = document.getElementById("checklist-items");
+    if (!activeOppId || !bookmarkedOppIds.has(activeOppId)) {
+        hint.hidden = false;
+        wrap.hidden = true;
+        return;
+    }
+    hint.hidden = true;
+    wrap.hidden = false;
+    label.textContent = "Opportunity: " + activeOppId;
+    const uid = getUserId();
+    itemsEl.innerHTML = "<p class='empty'>Loading…</p>";
+    const res = await fetch(
+        "/api/user_activity/get_checklist_items?user_id=" +
+            encodeURIComponent(uid) +
+            "&opportunity_id=" +
+            encodeURIComponent(activeOppId)
+    );
+    if (!res.ok) {
+        itemsEl.innerHTML = "<p class='error'>Failed to load checklist.</p>";
+        return;
+    }
+    const items = await res.json();
+    itemsEl.innerHTML = "";
+    if (!items.length) {
+        itemsEl.innerHTML = "<p class='empty'>No items yet. Add one above.</p>";
+        return;
+    }
+    items.forEach((it) => {
+        const row = document.createElement("div");
+        row.className = "checklist-row";
+        const id = it.item_id != null ? String(it.item_id) : "";
+        const done = it.is_completed === true || it.is_completed === "t" || it.is_completed === "true";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = done;
+        cb.addEventListener("change", async () => {
+            const uid2 = getUserId();
+            const url =
+                "/api/user_activity/update_checklist_item?user_id=" +
+                encodeURIComponent(uid2) +
+                "&opportunity_id=" +
+                encodeURIComponent(activeOppId) +
+                "&item_id=" +
+                encodeURIComponent(id) +
+                "&is_completed=" +
+                (cb.checked ? "true" : "false");
+            const r = await fetch(url);
+            if (!r.ok) cb.checked = !cb.checked;
+        });
+        const span = document.createElement("span");
+        span.textContent = it.item_name != null ? String(it.item_name) : "";
+        row.appendChild(cb);
+        row.appendChild(span);
+        itemsEl.appendChild(row);
+    });
+}
+
+document.getElementById("checklist-add-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!activeOppId || !bookmarkedOppIds.has(activeOppId)) return;
+    const input = document.getElementById("new-item-name");
+    const name = input.value.trim();
+    if (!name) return;
+    const uid = getUserId();
+    const url =
+        "/api/user_activity/add_checklist_item?user_id=" +
+        encodeURIComponent(uid) +
+        "&opportunity_id=" +
+        encodeURIComponent(activeOppId) +
+        "&item_name=" +
+        encodeURIComponent(name);
+    const res = await fetch(url);
+    if (res.ok) {
+        input.value = "";
+        renderChecklistPanel();
+    }
+});
+
+async function toggleBookmark(opportunityId, bookmark) {
+    const uid = getUserId();
+    const path = bookmark
+        ? "/api/user_activity/bookmark_grant"
+        : "/api/user_activity/unbookmark_grant";
+    const url =
+        path +
+        "?user_id=" +
+        encodeURIComponent(uid) +
+        "&opportunity_id=" +
+        encodeURIComponent(opportunityId);
+    const res = await fetch(url);
+    if (!res.ok) return;
+    if (bookmark) bookmarkedOppIds.add(opportunityId);
+    else {
+        bookmarkedOppIds.delete(opportunityId);
+        if (activeOppId === opportunityId) activeOppId = null;
+    }
+    await renderBookmarks();
+    await loadAlerts();
+    renderChecklistPanel();
+    void loadGrantsTable();
+}
+
+async function loadGrantsTable() {
+    const tbody = document.getElementById("grants-tbody");
+    const btn = document.getElementById("search-btn");
+    const tagParam = searchTextToTagsParam(document.getElementById("tag-search").value);
+    const qVal = document.getElementById("text-search").value.trim();
+    tbody.innerHTML = "";
+    btn.disabled = true;
+    try {
+        await fetchBookmarkedIds();
+        let url = "/api/opportunities";
+        if (tagParam) {
+            url += "?tags=" + encodeURIComponent(tagParam);
+        } else if (qVal) {
+            url += "?q=" + encodeURIComponent(qVal);
+        }
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(String(res.status));
+        const data = await res.json();
+        if (!data.length) {
+            tbody.innerHTML = "<tr><td colspan='4' class='empty'>No grants found.</td></tr>";
+            return;
+        }
+        data.forEach((grant) => {
+            const oid = grant.opportunity_id != null ? String(grant.opportunity_id) : "";
+            const title = grant.title != null ? String(grant.title) : "(no title)";
+            const agency = grant.agency != null ? String(grant.agency) : "—";
+            const status = grant.status != null ? String(grant.status) : "—";
+            const isBm = bookmarkedOppIds.has(oid);
+            const tr = document.createElement("tr");
+            const bmBtn = document.createElement("button");
+            bmBtn.type = "button";
+            bmBtn.className = "sm" + (isBm ? " bookmark-on" : "");
+            bmBtn.textContent = isBm ? "Saved" : "Bookmark";
+            bmBtn.addEventListener("click", () => toggleBookmark(oid, !isBm));
+            const tdBm = document.createElement("td");
+            tdBm.appendChild(bmBtn);
+            tr.innerHTML =
+                "<td><a href='/grants/" +
+                encodeURIComponent(oid) +
+                "'>" +
+                escapeHtml(title) +
+                "</a></td><td>" +
+                escapeHtml(agency) +
+                "</td><td>" +
+                escapeHtml(status) +
+                "</td>";
+            tr.appendChild(tdBm);
+            tbody.appendChild(tr);
+        });
+    } catch (err) {
+        tbody.innerHTML = "<tr><td colspan='4' class='error'>Failed to load grants.</td></tr>";
+        console.error(err);
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+document.getElementById("search-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    loadGrantsTable();
+});
+
+async function loadAll() {
+    refreshUserIdField();
+    await fetchBookmarkedIds();
+    await loadGrantsTable();
+    await renderBookmarks();
+    await loadAlerts();
+    await renderChecklistPanel();
+}
+
+loadAll();
+</script>
+
+</body>
+</html>

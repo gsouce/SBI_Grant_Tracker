@@ -131,6 +131,9 @@ CREATE TABLE IF NOT EXISTS user_grant_activity (
     ON DELETE CASCADE
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_user_grant_activity_user_opportunity
+ON user_grant_activity(user_id, opportunity_id);
+
 CREATE TABLE IF NOT EXISTS grant_checklist_items (
   item_id BIGSERIAL PRIMARY KEY,
   user_id TEXT NOT NULL,

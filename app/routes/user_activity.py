@@ -181,3 +181,14 @@ def add_checklist_item():
     )
     conn.commit()
     return jsonify({"message": "Checklist item added successfully"})
+
+@user_activity_bp.route("/api/user_activity/add_is_bookmarked_column")
+def add_is_bookmarked_column():
+    """
+    Add the is_bookmarked column to the user_grant_activity table
+    """
+    conn = get_db_connection(test_mode=is_test_mode())
+    cursor = conn.cursor()
+    cursor.execute("ALTER TABLE user_grant_activity ADD COLUMN is_bookmarked BOOLEAN NOT NULL DEFAULT FALSE")
+    conn.commit()
+    return jsonify({"message": "is_bookmarked column added successfully"})

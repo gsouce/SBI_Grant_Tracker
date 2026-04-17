@@ -126,6 +126,9 @@ def get_opportunities():
                     grants.title,
                     grants.agency,
                     grants.status,
+                    grants.funding_amount,
+                    grants.award_floor,
+                    grants.award_ceiling,
                     grant_tags.tag,
                     grant_tags.tag_score,
                     grant_tags.total_score
@@ -168,6 +171,55 @@ def get_opportunities():
         return jsonify(opportunities)
     except Exception as e:
         return jsonify({"message": "Error getting opportunities: " + str(e)}), 500
+    finally:
+        conn.close()
+
+@api_bp.route("/api/opportunities/total_funding")
+def get_total_funding():
+    """
+    Get the total funding amount for an opportunity from the database (grants table)
+    Returns:
+        total funding amount by tag or agency
+    """
+    try:
+        conn = get_db_connection(test_mode=is_test_mode())
+        tag_raw = request.args.get("tag", "")
+        tag_list = [t.strip() for t in tag_raw.split(",") if t.strip()]
+        cursor = conn.cursor()
+        if tag_list:
+            tag_list_lower = [t.lower() for t in tag_list]
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT
+                    grants_tags.tag,
+                    SUM(grants.funding_amount) AS total_funding,
+                    count(grants.opportunity_id) as total_grants) as total_funding_by_tag
+                FROM grants
+                INNER JOIN (
+                    SELECT
+                        opportunity_id,
+                        tag,
+                        tag_score,
+                        sum(tag_score) OVER (PARTITION BY opportunity_id) AS total_score
+                    FROM grant_tags
+                    WHERE LOWER(tag) = ANY(%s)
+                ) AS grant_tags
+                    ON grants.opportunity_id = grant_tags.opportunity_id
+                WHERE grant_tags.total_score > 0
+                group by grants_tags.tag
+                ORDER BY grant_tags.total_score DESC
+                """,
+                (tag_list_lower,),
+            )
+            total_funding = _rows_to_dicts(cursor)
+            return jsonify(total_funding)
+        else:
+            cursor.execute("SELECT agency, SUM(funding_amount) AS total_funding, count(opportunity_id) as total_grants FROM grants group by agency order by total_funding desc")
+            total_funding = _rows_to_dicts(cursor)
+            return jsonify(total_funding)
+    except Exception as e:
+        return jsonify({"message": "Error getting total funding: " + str(e)}), 500
     finally:
         conn.close()
 

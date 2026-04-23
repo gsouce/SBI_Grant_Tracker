@@ -3,7 +3,7 @@ API Routes used for user activity
 """
 from flask import Blueprint, jsonify
 from flask import request
-from db.db_util import get_db_connection, is_test_mode
+from db.db_util import get_db_connection, is_test_mode, row_get
 from app.routes.api import _rows_to_dicts
 
 user_activity_bp = Blueprint("user_activity", __name__)
@@ -224,15 +224,51 @@ def add_checklist_item():
 @user_activity_bp.route("/api/reset_oei_data")
 def reset_oei_data():
     """
-    one time function to add the opportunity source to the database, need to add the column
+    Remove all grants rows sourced from the WI PSC OEI pipeline, and any rows in
+    tables that FK to grants(opportunity_id) for those ids (Postgres may not CASCADE).
     """
+    oei_source = "wi_psc_oei"
+    dependent_tables = (
+        "grant_checklist_items",
+        "user_grant_activity",
+        "grant_tags",
+        "grant_alerts",
+        "grant_snapshots",
+        "tribal_eligibility",
+    )
     try:
         conn = get_db_connection(test_mode=is_test_mode())
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM grants WHERE opportunity_source = 'wi_psc_oei'")
+        cursor.execute(
+            "SELECT opportunity_id FROM grants WHERE opportunity_source = %s",
+            (oei_source,),
+        )
+        rows = cursor.fetchall()
+        ids = [row_get(r, "opportunity_id", 0) for r in rows if row_get(r, "opportunity_id", 0)]
+
+        if ids:
+            placeholders = ",".join(["%s"] * len(ids))
+            params = tuple(ids)
+            for table in dependent_tables:
+                cursor.execute(
+                    f"DELETE FROM {table} WHERE opportunity_id IN ({placeholders})",
+                    params,
+                )
+
+        cursor.execute(
+            "DELETE FROM grants WHERE opportunity_source = %s",
+            (oei_source,),
+        )
+        deleted = cursor.rowcount
         conn.commit()
-        return jsonify({"message": "Opportunity source added successfully"})
+        return jsonify(
+            {
+                "message": "WI PSC OEI grants reset successfully",
+                "deleted_grant_rows": deleted,
+                "cleared_opportunity_ids": len(ids),
+            }
+        )
     except Exception as e:
-        return jsonify({"message": "Error adding opportunity source: " + str(e)}), 500
+        return jsonify({"message": "Error resetting OEI grant data: " + str(e)}), 500
     finally:
         conn.close()

@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from jobs.log_utils import log
+
 from ai_utils import (
     build_extraction_prompt,
     rank_candidate_links_for_fetch,
@@ -47,13 +49,18 @@ PROGRAM_URLS = [
 ]
 
 
-def wis_psc_main(conn):
+def wis_psc_main(conn, job_id):
     """
     Phase 1: scrape fixed OEI program pages, detect changes by hash, extract text
     and linked documents, RAG over program page + attachments, Groq extraction.
     """
     embed_model = get_embedding_model_name()
     session = requests.Session()
+    stats = {
+        "grants_processed": 0,
+        "new_grants": 0,
+        "updated_grants": 0,
+    }
 
     for url in PROGRAM_URLS:
         print(f"[fetch] {url}")
@@ -69,8 +76,11 @@ def wis_psc_main(conn):
 
         prev = get_stored_hash(conn, url)
         if prev == content_hash:
-            print(f"[skip] unchanged content hash for {url}")
+            log(conn, job_id, f"[skip] unchanged content hash for {url}", "INFO")
+            stats["grants_processed"] += 1
             continue
+        elif prev is None:
+            stats["new_grants"] += 1
 
         link_records = extract_candidate_link_records(soup, url)
         urls_only = [u for u, _ in link_records]
@@ -85,10 +95,9 @@ def wis_psc_main(conn):
         except Exception:
             traceback.print_exc()
             candidates = heuristic[:MAX_ATTACHMENT_FETCHES]
-        print(
-            f"[links] {len(link_records)} candidates, "
-            f"fetch order ({len(candidates)}): LLM-ranked with heuristic fallback"
-        )
+        log(conn, job_id, f"[links] {len(link_records)} candidates")
+        log(conn, job_id, f"fetch order ({len(candidates)}): LLM-ranked with heuristic fallback", "INFO")
+        
         time.sleep(2.0)
 
         document_ids: list[int] = []
@@ -121,12 +130,12 @@ def wis_psc_main(conn):
                 )
                 time.sleep(1.5)
         except Exception:
-            print("[rag] indexing or retrieval failed; continuing without RAG context")
+            log(conn, job_id, "[rag] indexing or retrieval failed; continuing without RAG context", "ERROR")
             traceback.print_exc()
             rag_context = ""
 
         attachment_blocks = collect_attachment_snippets(candidates)
-        print(f"[attachments] short heads from {len(attachment_blocks)} URLs")
+        log(conn, job_id, f"[attachments] short heads from {len(attachment_blocks)} URLs", "INFO")
 
         prompt = build_extraction_prompt(
             url,
@@ -139,7 +148,7 @@ def wis_psc_main(conn):
         try:
             raw_response, structured = run_extraction_prompt(prompt)
         except Exception:
-            print(f"[ai] failed for {url}")
+            log(conn, job_id, f"[ai] failed for {url}", "ERROR")
             traceback.print_exc()
             try:
                 save_ai_extraction_log(
@@ -150,7 +159,7 @@ def wis_psc_main(conn):
                     extracted_payload=None,
                 )
             except Exception:
-                print("[ai-log] failed to persist failure log")
+                log(conn, job_id, "[ai-log] failed to persist failure log", "ERROR")
                 traceback.print_exc()
             continue
 
@@ -163,12 +172,15 @@ def wis_psc_main(conn):
                 extracted_payload=structured,
             )
         except Exception:
-            print("[ai-log] failed to persist extraction log")
+            log(conn, job_id, "[ai-log] failed to persist extraction log", "ERROR")
             traceback.print_exc()
 
         save_ai_extraction(conn, structured or {}, url, content_hash)
-        print(f"[saved] {url}")
+        log(conn, job_id, f"[saved] {url}", "INFO")
+        stats["grants_processed"] += 1
         time.sleep(2.5)
+
+        return stats
 
 
 ENERGY_INNOVATION_URL = PROGRAM_URLS[0]
@@ -266,10 +278,8 @@ def print_program_details(conn, url: str) -> None:
 
 
 if __name__ == "__main__":
-    conn = sqlite3.connect("wisconsin_psc.db")
-    conn.row_factory = sqlite3.Row
     init_tables(conn)
     wis_psc_main(conn)
-    print_program_details(conn, ENERGY_INNOVATION_URL)
+#     print_program_details(conn, ENERGY_INNOVATION_URL)
     print_latest_ai_log(conn, ENERGY_INNOVATION_URL)
-    conn.close()
+#     conn.close()

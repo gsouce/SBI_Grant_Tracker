@@ -12,24 +12,24 @@ load_dotenv()
 
 from jobs.log_utils import log
 
-from ai_utils import (
+from pipelines.wi_psc.ai_utils import (
     build_extraction_prompt,
     rank_candidate_links_for_fetch,
     run_extraction_prompt,
 )
-from db_util import (
+from pipelines.wi_psc.db_util import (
     get_stored_hash,
     init_tables,
     save_ai_extraction,
     save_ai_extraction_log,
 )
-from rag_util import (
+from pipelines.wi_psc.rag_util import (
     DEFAULT_RAG_QUERY_SETS,
     ensure_indexed,
     get_embedding_model_name,
     retrieve_for_program,
 )
-from web_scraping_utils import (
+from pipelines.wi_psc.web_scraping_utils import (
     MAX_ATTACHMENT_FETCHES,
     collect_attachment_snippets,
     extract_candidate_link_records,

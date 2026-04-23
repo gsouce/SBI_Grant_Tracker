@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Extraction Logs</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 20px;
+        }
+
+        h1 {
+            margin-bottom: 6px;
+        }
+
+        .meta {
+            color: #94a3b8;
+            margin-bottom: 18px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #1e293b;
+        }
+
+        th, td {
+            padding: 10px;
+            border-bottom: 1px solid #334155;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #020617;
+        }
+
+        tr:hover {
+            background: #334155;
+        }
+
+        a {
+            color: #38bdf8;
+            text-decoration: none;
+        }
+
+        pre {
+            white-space: pre-wrap;
+            word-break: break-word;
+            margin: 0;
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 12px;
+            color: #cbd5e1;
+        }
+
+        details {
+            max-width: 900px;
+        }
+
+        summary {
+            cursor: pointer;
+            color: #7dd3fc;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+<h1>AI Extraction Logs</h1>
+<div class="meta">
+    Showing up to 200 most recent rows from <code>ai_extraction_logs</code>.
+</div>
+<p><a href="/dashboard">Back to Mission Control</a></p>
+
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>URL</th>
+            <th>Created</th>
+            <th>Prompt</th>
+            <th>Raw Response</th>
+            <th>Extracted JSON</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in logs %}
+        <tr>
+            <td>{{ row["id"] }}</td>
+            <td>{{ row["url"] }}</td>
+            <td>{{ row["created_at"] }}</td>
+            <td>
+                <details>
+                    <summary>View prompt</summary>
+                    <pre>{{ row["prompt"] or "" }}</pre>
+                </details>
+            </td>
+            <td>
+                <details>
+                    <summary>View raw response</summary>
+                    <pre>{{ row["raw_response"] or "" }}</pre>
+                </details>
+            </td>
+            <td>
+                <details>
+                    <summary>View extracted JSON</summary>
+                    <pre>{{ row["extracted_json"] or "" }}</pre>
+                </details>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</body>
+</html>

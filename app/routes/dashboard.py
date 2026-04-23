@@ -74,6 +74,19 @@ def grant_tag_detail_page(tag):
     """, (tag,)).fetchall()
     return render_template("grant_tag_details.html", grant_tags=grant_tags)
 
+
+@dashboard_bp.route("/dashboard/ai_extraction_logs")
+def ai_extraction_logs_page():
+    conn = get_db_connection(test_mode=is_test_mode())
+    logs = conn.execute("""
+        SELECT *
+        FROM ai_extraction_logs
+        ORDER BY created_at DESC, id DESC
+        LIMIT 200
+    """).fetchall()
+    return render_template("ai_extraction_logs.html", logs=logs)
+
+
 @dashboard_bp.route("/grants")
 def grants_page():
     return render_template("grants.html")

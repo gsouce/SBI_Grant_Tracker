@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import datetime
 
@@ -182,10 +183,22 @@ def save_ai_extraction(conn, extraction: dict, url: str, webpage_text_hash: str)
             updated_at,
             last_seen_at
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (opportunity_id) DO UPDATE SET
+            opportunity_source = EXCLUDED.opportunity_source,
+            number = EXCLUDED.number,
+            title = EXCLUDED.title,
+            status = EXCLUDED.status,
+            deadline_date = EXCLUDED.deadline_date,
+            estimated_funding = EXCLUDED.estimated_funding,
+            eligibilities = EXCLUDED.eligibilities,
+            description = EXCLUDED.description,
+            attachments = EXCLUDED.attachments,
+            updated_at = EXCLUDED.updated_at,
+            last_seen_at = EXCLUDED.last_seen_at
         """,
         (
             "wi_psc_oei",
-            f"WI-PSC-OEI-{program_name}",
+            f"WI-PSC-OEI-{hashlib.sha256(url.encode('utf-8')).hexdigest()}",
             -1,
             program_name,
             program_status,

@@ -111,6 +111,10 @@ def normalize_opportunity(data: dict) -> dict:
         "description": synopsis.get("synopsisDesc") if syn_avail else synopsis.get("forecastDesc"),
         "category": data.get("opportunityCategory"),
 
+        "link_url": synopsis.get("fundingDescLinkUrl"),
+        "link_description": synopsis.get("fundingDescLinkDesc"),
+        "grant_gov_url": f"https://www.grants.gov/search-results-detail/{data.get("opportunityId")}",
+
         "alns": json.dumps(alns_out, ensure_ascii=False),
         "eligibilities": json.dumps(elig_out, ensure_ascii=False),
         "funding_categories": json.dumps(fund_out, ensure_ascii=False),

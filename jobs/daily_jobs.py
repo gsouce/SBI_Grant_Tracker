@@ -45,31 +45,31 @@ def run_daily_jobs() -> None:
     print(f"Grants daily job pipeline run completed with ID: {job_id}")
     print(f"Daily jobs took {datetime.now() - daily_start_time}")
     print("--------------------------------")
-    print("Creating pipeline run for PSC daily job...")
-    job_id = create_pipeline_run(conn, "psc", "daily")
-    print(f"PSC daily job pipeline run created with ID: {job_id}")
-    print("Starting PSC daily job...")
-    wis_psc_init_tables(conn)
-    print("Wisconsin PSC tables initialized")
-    psc_daily_start_time = datetime.now()
-    stats = wis_psc_main(conn, job_id) or {}
-    psc_daily_end_time = datetime.now()
-    psc_daily_end_time_str = psc_daily_end_time.strftime('%Y-%m-%d %H:%M:%S')
-    print(f"PSC daily job completed at {psc_daily_end_time_str}")
-    print(f"PSC daily job took {psc_daily_end_time - psc_daily_start_time}")
-    log(conn, job_id, f"PSC daily job took {psc_daily_end_time - psc_daily_start_time}", "INFO")
-    print("Updating pipeline run for PSC daily job...")
-    update_pipeline_run(
-        conn,
-        job_id,
-        status="completed",
-        finished_at=datetime.now(),
-        records_processed=stats.get("grants_processed", 0),
-        new_records=stats.get("new_grants", 0),
-        updated_records=stats.get("updated_grants", 0),
-    )
-    mark_runs_completed(conn)
-    print(f"PSC daily job pipeline run completed with ID: {job_id}")
+    # print("Creating pipeline run for PSC daily job...")
+    # job_id = create_pipeline_run(conn, "psc", "daily")
+    # print(f"PSC daily job pipeline run created with ID: {job_id}")
+    # print("Starting PSC daily job...")
+    # wis_psc_init_tables(conn)
+    # print("Wisconsin PSC tables initialized")
+    # psc_daily_start_time = datetime.now()
+    # stats = wis_psc_main(conn, job_id) or {}
+    # psc_daily_end_time = datetime.now()
+    # psc_daily_end_time_str = psc_daily_end_time.strftime('%Y-%m-%d %H:%M:%S')
+    # print(f"PSC daily job completed at {psc_daily_end_time_str}")
+    # print(f"PSC daily job took {psc_daily_end_time - psc_daily_start_time}")
+    # log(conn, job_id, f"PSC daily job took {psc_daily_end_time - psc_daily_start_time}", "INFO")
+    # print("Updating pipeline run for PSC daily job...")
+    # update_pipeline_run(
+    #     conn,
+    #     job_id,
+    #     status="completed",
+    #     finished_at=datetime.now(),
+    #     records_processed=stats.get("grants_processed", 0),
+    #     new_records=stats.get("new_grants", 0),
+    #     updated_records=stats.get("updated_grants", 0),
+    # )
+    # mark_runs_completed(conn)
+    # print(f"PSC daily job pipeline run completed with ID: {job_id}")
     print(f"Daily jobs took {datetime.now() - daily_start_time}")
     print("--------------------------------")
     print("Closing database connection...")

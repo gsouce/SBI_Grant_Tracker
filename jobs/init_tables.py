@@ -50,4 +50,16 @@ def create_pipeline_tables(conn):
             ("pipeline_logs", "pipeline_logs_id_seq"),
         ),
     )
+
+    conn.execute(
+        """ CREATE TABLE IF NOT EXISTS token_tracker (
+            id BIGSERIAL PRIMARY KEY,
+            provider TEXT NOT NULL,
+            prompt_tokens INTEGER NOT NULL,
+            completion_tokens INTEGER NOT NULL,
+            total_tokens INTEGER NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+    )
     conn.commit()

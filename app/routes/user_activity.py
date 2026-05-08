@@ -2,7 +2,7 @@
 API Routes used for user activity
 """
 from flask import Blueprint, jsonify
-from flask import request
+from flask import request, session
 from db.db_util import get_db_connection, is_test_mode, row_get
 from app.routes.api import _rows_to_dicts
 
@@ -21,7 +21,7 @@ def mark_grant():
     """
     try:
         conn = get_db_connection(test_mode=is_test_mode())
-        user_id = request.args.get("user_id")
+        user_id = session["user_id"]
         opportunity_id = request.args.get("opportunity_id")
         status = request.args.get("status")
         cursor = conn.cursor()
@@ -48,7 +48,7 @@ def bookmark_grant():
     """
     try:
         conn = get_db_connection(test_mode=is_test_mode())
-        user_id = request.args.get("user_id")
+        user_id = session["user_id"]
         opportunity_id = request.args.get("opportunity_id")
         cursor = conn.cursor()
         cursor.execute(
@@ -74,7 +74,7 @@ def unbookmark_grant():
     """
     try:
         conn = get_db_connection(test_mode=is_test_mode())
-        user_id = request.args.get("user_id")
+        user_id = session["user_id"]
         opportunity_id = request.args.get("opportunity_id")
         cursor = conn.cursor()
         cursor.execute(
@@ -96,7 +96,7 @@ def get_bookmarked_grants():
     """
     try:
         conn = get_db_connection(test_mode=is_test_mode())
-        user_id = request.args.get("user_id")
+        user_id = session["user_id"]
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -121,7 +121,7 @@ def get_user_alerts():
     """
     try:
         conn = get_db_connection(test_mode=is_test_mode())
-        user_id = request.args.get("user_id")
+        user_id = session["user_id"]
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -160,7 +160,7 @@ def get_checklist_items():
     """
     try:
         conn = get_db_connection(test_mode=is_test_mode())
-        user_id = request.args.get("user_id")
+        user_id = session["user_id"]
         opportunity_id = request.args.get("opportunity_id")
         cursor = conn.cursor()
         cursor.execute(
@@ -182,7 +182,7 @@ def update_checklist_item():
     """
     try:
         conn = get_db_connection(test_mode=is_test_mode())
-        user_id = request.args.get("user_id")
+        user_id = session["user_id"]
         opportunity_id = request.args.get("opportunity_id")
         item_id = request.args.get("item_id")
         is_completed = _parse_bool_arg("is_completed")
@@ -206,7 +206,7 @@ def add_checklist_item():
     """
     try: 
         conn = get_db_connection(test_mode=is_test_mode())
-        user_id = request.args.get("user_id")
+        user_id = session["user_id"]
         opportunity_id = request.args.get("opportunity_id")
         item_name = request.args.get("item_name")
         cursor = conn.cursor()
@@ -219,6 +219,119 @@ def add_checklist_item():
     except Exception as e:
         return jsonify({"message": "Error adding checklist item: " + str(e)}), 500
     finally: 
+        conn.close()
+
+
+@user_activity_bp.route("/api/user_activity/get_user_info")
+def get_user_info():
+    """
+    Get the current user's information
+    """
+    try:
+        conn = get_db_connection(test_mode=is_test_mode())
+        user_id = session["user_id"]
+        cursor = conn.cursor()
+        cursor.execute("""
+        SELECT user_id, email, role, user_name, group.group_name
+        FROM users 
+        left join groups on users.group_id = groups.group_id
+        WHERE user_id = %s""", (user_id,))
+        user = cursor.fetchone()
+        return jsonify(user)
+    except Exception as e:
+        return jsonify({"message": "Error getting user info: " + str(e)}), 500
+    finally:
+        conn.close()
+
+
+@user_activity_bp.route("/api/user_activity/get_user_projects")
+def get_user_projects():
+    """
+    Get the current user's projects
+    """
+    try:
+        conn = get_db_connection(test_mode=is_test_mode())
+        user_id = session["user_id"]
+        cursor = conn.cursor()
+        cursor.execute("SELECT project_id, project_name, project_description, project_status, funding_required, funding_secured FROM projects WHERE project_owner_user_id = %s", (user_id,))
+        projects = _rows_to_dicts(cursor)
+        return jsonify(projects)
+    except Exception as e:
+        return jsonify({"message": "Error getting user projects: " + str(e)}), 500
+    finally:
+        conn.close()
+
+@user_activity_bp.route("/api/user_activity/add_project_task")
+def add_project_task():
+    """
+    Add a task to a project
+    """
+    try:
+        conn = get_db_connection(test_mode=is_test_mode())
+        user_id = session["user_id"]
+        project_id = request.args.get("project_id")
+        task_name = request.args.get("task_name")
+        task_description = request.args.get("task_description")
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO project_tasks (task_name, task_description, task_owner_user_id, task_project_id) VALUES (%s, %s, %s, %s)", (task_name, task_description, user_id, project_id))
+        conn.commit()
+        return jsonify({"message": "Task added successfully"})
+    except Exception as e:
+        return jsonify({"message": "Error adding task: " + str(e)}), 500
+
+@user_activity_bp.route("/api/user_activity/get_project_tasks")
+def get_project_tasks():
+    """
+    Get the tasks for a project
+    """
+    try:
+        conn = get_db_connection(test_mode=is_test_mode())
+        project_id = request.args.get("project_id")
+        cursor = conn.cursor()
+        cursor.execute("SELECT task_id, task_name, task_description, task_owner_user_id, task_project_id FROM project_tasks WHERE task_project_id = %s", (project_id,))
+        tasks = _rows_to_dicts(cursor)
+        return jsonify(tasks)
+    except Exception as e:
+        return jsonify({"message": "Error getting tasks: " + str(e)}), 500
+    finally:
+        conn.close()
+
+@user_activity_bp.route("/api/user_activity/update_project_task")
+def update_project_task():
+    """
+    Update a task for a project
+    """
+    try:
+        conn = get_db_connection(test_mode=is_test_mode())
+        project_id = request.args.get("project_id")
+        task_id = request.args.get("task_id")
+        task_name = request.args.get("task_name")
+        task_description = request.args.get("task_description")
+        task_status = request.args.get("task_status")
+        cursor = conn.cursor()
+        cursor.execute("UPDATE project_tasks SET task_name = %s, task_description = %s, task_status = %s WHERE task_id = %s", (task_name, task_description, task_status, task_id))
+        conn.commit()
+        return jsonify({"message": "Task updated successfully"})
+    except Exception as e:
+        return jsonify({"message": "Error updating task: " + str(e)}), 500
+
+
+@user_activity_bp.route("/api/user_activity/delete_project_task")
+def delete_project_task():
+    """
+    Delete a task for a project
+    """
+    try:
+        conn = get_db_connection(test_mode=is_test_mode())
+        project_id = request.args.get("project_id")
+        task_id = request.args.get("task_id")
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM project_tasks WHERE task_id = %s", (task_id,))
+        conn.commit()
+        return jsonify({"message": "Task deleted successfully"})
+    except Exception as e:
+        return jsonify({"message": "Error deleting task: " + str(e)}), 500
+    finally:
         conn.close()
 
 @user_activity_bp.route("/api/reset_oei_data")

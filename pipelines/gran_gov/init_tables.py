@@ -34,6 +34,10 @@ CREATE TABLE IF NOT EXISTS grants (
   alns TEXT,            -- JSON array string
   eligibilities TEXT, -- JSON array string
 
+  link_url TEXT,
+  link_description TEXT,
+  grant_gov_url TEXT,
+
   description TEXT,
   funding_categories TEXT, -- JSON array string
   attachments TEXT,   -- JSON array string
@@ -147,6 +151,50 @@ CREATE TABLE IF NOT EXISTS grant_checklist_items (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_grant_checklist_items_opportunity_id
 ON grant_checklist_items(user_id, opportunity_id, item_name);
+
+
+CREATE TABLE IF NOT EXISTS users (
+  id BIGSERIAL PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  group_id TEXT,
+  user_name TEXT NOT NULL,
+  user_email TEXT NOT NULL,
+  role text NOT NULL,
+  user_password TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS groups (
+  group_id TEXT NOT NULL PRIMARY KEY,
+  group_name TEXT NOT NULL,
+  group_owner_user_id TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS projects (
+  project_id TEXT NOT NULL PRIMARY KEY,
+  project_name TEXT NOT NULL,
+  project_description TEXT NOT NULL,
+  project_status TEXT NOT NULL,
+  funding_required real,
+  funding_secured real,
+  project_owner_user_id TEXT NOT NULL,
+  project_group_id TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS project_tasks (
+  task_id TEXT NOT NULL PRIMARY KEY,
+  task_name TEXT NOT NULL,
+  task_description TEXT NOT NULL,
+  task_owner_user_id TEXT NOT NULL,
+  task_project_id TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 

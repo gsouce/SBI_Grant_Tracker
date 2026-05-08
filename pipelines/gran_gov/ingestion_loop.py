@@ -5,10 +5,16 @@ import time
 from typing import Any, Optional
 from pipelines.gran_gov.ingestion_utils import fetch_opportunity, normalize_opportunity, update_tribal_eligibility, update_grant_tags
 from pipelines.gran_gov.change_detection import detect_changes
-from pipelines.gran_gov.ai_utils import ai_tribal_eligibility_check, get_llm_client, ai_grant_tagging, RateLimitError
 from pipelines.gran_gov.quick_classification import quick_classification
 from jobs.log_utils import log
 from db.db_util import row_get
+from pipelines.ai_utils.llm_utils import TokenTracker
+from pipelines.ai_utils.prompts import ai_tribal_eligibility_check, ai_grant_tagging
+from groq import Groq
+import os
+from openai import OpenAI
+from pipelines.ai_utils.llm_clients import LLMService
+from pipelines.ai_utils.llm_clients import GroqProvider, OpenAIProvider
 
 def canonical_json(obj: Any) -> str:
     # Sort keys + compact separators for stable hashing
@@ -111,9 +117,10 @@ def upsert_grant_current(conn, normalized: dict[str, Any]):
             posted_date, close_date,
             deadline_date, deadline_description, last_updated_date,
             award_floor, award_ceiling, estimated_funding, cost_sharing,
+            link_url, link_description, grant_gov_url,
             category, eligibility_description, alns, eligibilities, funding_categories, description, attachments
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT(opportunity_id) DO UPDATE SET
             number=excluded.number,
             title=excluded.title,
@@ -129,6 +136,9 @@ def upsert_grant_current(conn, normalized: dict[str, Any]):
             award_ceiling=excluded.award_ceiling,
             estimated_funding=excluded.estimated_funding,
             cost_sharing=excluded.cost_sharing,
+            link_url=excluded.link_url,
+            link_description=excluded.link_description,
+            grant_gov_url=excluded.grant_gov_url,
             category=excluded.category,
             eligibility_description=excluded.eligibility_description,
             alns=excluded.alns,
@@ -154,6 +164,9 @@ def upsert_grant_current(conn, normalized: dict[str, Any]):
                 _sql_real(normalized.get("award_ceiling")),
                 _sql_real(normalized.get("estimated_funding")),
                 _sql_text(normalized.get("cost_sharing")),
+                _sql_text(normalized.get("link_url")),
+                _sql_text(normalized.get("link_description")),
+                _sql_text(normalized.get("grant_gov_url")),
                 _sql_text(normalized.get("category")),
                 _sql_text(normalized.get("eligibility_description")),
                 _json_text(normalized.get("alns", [])),
@@ -177,7 +190,10 @@ def daily_ingestion(conn, opportunity_ids: list[str], job_id: int):
       - updated_records: grants where the snapshot hash changed vs. the prior snapshot
     """
     try:
-        llm_client = get_llm_client()
+        token_tracker = TokenTracker(job_id)
+        groq_provider = GroqProvider(client=Groq(api_key=os.getenv("GROQ_API_KEY")))
+        openai_provider = OpenAIProvider(client=OpenAI(api_key=os.getenv("OPENAI_API_KEY")))
+        llm_service = LLMService(groq_provider=groq_provider, openai_provider=openai_provider, token_tracker=token_tracker)
         ingestion_count = 0
         new_grants = 0
         updated_grants = 0
@@ -211,7 +227,7 @@ def daily_ingestion(conn, opportunity_ids: list[str], job_id: int):
                         log(conn, job_id, f"Identified as new grant and classified as tribal eligible by quick classification for opportunity id: {oid}", "INFO")
                         new_relevant_grants += 1
                     else: 
-                        classification = ai_tribal_eligibility_check(llm_client, normalized)
+                        classification = ai_tribal_eligibility_check(llm_service, normalized)
                         if classification is not None and classification["is_tribal_eligible"]:
                             update_tribal_eligibility(conn, str(oid), classification)
                             log(conn, job_id, f"Identified as new grant and classified as tribal eligible by AIfor opportunity id: {oid}", "INFO")
@@ -220,7 +236,7 @@ def daily_ingestion(conn, opportunity_ids: list[str], job_id: int):
                             update_tribal_eligibility(conn, str(oid), quick_check_result)
                             log(conn, job_id, f"Identified as new grant and classified as not relevant for opportunity id: {oid}", "INFO")
                     # Add tags to new grants (categorization)
-                    ai_result = ai_grant_tagging(llm_client, normalized)
+                    ai_result = ai_grant_tagging(llm_service, normalized)
                     if ai_result is not None:
                         update_grant_tags(conn, str(oid), ai_result, job_id)
                         log(conn, job_id, f"Tagged new grant with tags: {ai_result['tags']} for opportunity id: {oid}", "INFO")
@@ -272,16 +288,11 @@ def daily_ingestion(conn, opportunity_ids: list[str], job_id: int):
                     log(conn, job_id, f"Inserted {len(alerts)} alerts for opportunity id: {oid}", "INFO")
                     grants_with_alerts += 1
                     # Add tags to grants with alerts (categorization) because they could have changed                   
-                    ai_result = ai_grant_tagging(llm_client, normalized)
+                    ai_result = ai_grant_tagging(llm_service, normalized)
                     if ai_result is not None:
                         update_grant_tags(conn, str(oid), ai_result, job_id)
                         log(conn, job_id, f"Tagged new grant with tags: {ai_result['tags']} for opportunity id: {oid}", "INFO")
                 i += 1
-            except RateLimitError as e:
-                pause_s = float(getattr(e, "retry_seconds", 10.0) or 10.0)
-                log(conn, job_id, f"Hit AI 429 rate limit. Pausing for {pause_s:.1f}s then retrying oid={oid}", "WARN")
-                time.sleep(pause_s)
-                # Important: do NOT increment i; retry same oid.
             except Exception as e:
                 log(conn, job_id, f"Error in daily ingestion for opportunity id: {oid}: {e}", "ERROR")
                 i += 1

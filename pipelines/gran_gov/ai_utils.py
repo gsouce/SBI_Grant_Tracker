@@ -10,6 +10,7 @@ import os
 from datetime import datetime
 from typing import Optional
 import httpx
+from openai import OpenAI
 load_dotenv()
 
 # NOTE: when we productionalize this, we will want to get the API key from the environment variables
@@ -102,9 +103,37 @@ class OllamaLLMClient:
             raise
 
 
+class OpenAILLMClient:
+    """Calls the OpenAI API."""
+    def __init__(self):
+        self._client = 
+        self._model = os.getenv("OPENAI_MODEL")
+
+    def complete(self, prompt: str) -> str:
+        try:
+            response = self._client.chat.completions.create(
+                model=self._model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0,
+            )
+            return response.choices[0].message.content
+
+        except httpx.HTTPStatusError as e:
+            if e.response is not None and e.response.status_code == 429:
+                retry_after = _parse_retry_after_seconds(
+                    e.response.headers.get("Retry-After")
+                )
+                raise RateLimitError(retry_after, f"OpenAI 429 rate limit. Retrying in {retry_after}s")
+            raise
+        except Exception as e:
+            print("Error calling OpenAI API:", e)
+            return ""
+
 def get_llm_client():
     if LLM_PROVIDER == "ollama":
         return OllamaLLMClient()
+    elif LLM_PROVIDER == "openai":
+        return OpenAILLMClient()
     return GroqLLMClient()
 
 def _normalize_tribal_result(raw: dict) -> dict:

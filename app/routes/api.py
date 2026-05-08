@@ -103,9 +103,6 @@ def get_opportunities():
     With ``q``: title/agency substring match (case-insensitive), up to 50 rows, ordered by
     posted_date then title.
 
-# TODO: ADD FUNDING AMOUNT PER GRANT
-# TODO: ADD AN ENDPOINT TO GET THE FUNDING AMOUNT BY TAG/CATEGORY
-
     With ``tags`` (comma-separated): one object per opportunity that matches any
     listed tag (case-insensitive), ordered by ``total_score`` descending. Each object includes
     ``total_score`` (sum of matching tag scores for that opportunity) and
@@ -131,7 +128,8 @@ def get_opportunities():
                     grants.award_ceiling,
                     grant_tags.tag,
                     grant_tags.tag_score,
-                    grant_tags.total_score
+                    grant_tags.total_score,
+                    grants.grant_gov_url
                 FROM grants
                 INNER JOIN (
                     SELECT

@@ -123,9 +123,7 @@ def get_opportunities():
                     grants.title,
                     grants.agency,
                     grants.status,
-                    grants.funding_amount,
-                    grants.award_floor,
-                    grants.award_ceiling,
+                    grants.estimated_funding,
                     grant_tags.tag,
                     grant_tags.tag_score,
                     grant_tags.total_score,
@@ -153,7 +151,7 @@ def get_opportunities():
             pattern = f"%{q_raw}%"
             cursor.execute(
                 """
-                SELECT opportunity_id, title, agency, status
+                SELECT opportunity_id, title, agency, status, estimated_funding, grant_gov_url
                 FROM grants
                 WHERE title ILIKE %s OR agency ILIKE %s
                 ORDER BY posted_date DESC NULLS LAST, title

@@ -5,11 +5,18 @@ import time
 from pipelines.gran_gov.main import get_opportunity_ids
 from pipelines.gran_gov.ingestion_loop import upsert_grant_current, insert_snapshot
 from pipelines.gran_gov.ingestion_utils import fetch_opportunity, normalize_opportunity, update_tribal_eligibility, update_grant_tags
-from pipelines.gran_gov.ai_utils import ai_grant_tagging, ai_tribal_eligibility_check, get_llm_client, RateLimitError
 from pipelines.gran_gov.init_tables import create_tables
 from pipelines.gran_gov.quick_classification import quick_classification
 from db.db_util import get_db_connection
 from config.runtime import get_runtime_settings
+
+from pipelines.ai_utils.llm_utils import TokenTracker
+from pipelines.ai_utils.llm_clients import GroqProvider, OpenAIProvider
+from pipelines.ai_utils.llm_clients import LLMService
+from pipelines.ai_utils.prompts import ai_grant_tagging, ai_tribal_eligibility_check
+from groq import Groq
+import os
+from openai import OpenAI
 
 
 def ingest_backlog(conn, test_mode: int = 0):
@@ -35,7 +42,11 @@ def ingest_backlog(conn, test_mode: int = 0):
     print(f"Found {len(new_ids)} untagged opportunity ids.")
 
     #3: Pull the details for each opportunity id and put into DB
-    llm_client = get_llm_client()
+    token_tracker = TokenTracker(-1)
+    groq_provider = GroqProvider(client=Groq(api_key=os.getenv("GROQ_API_KEY")))
+    openai_provider = OpenAIProvider(client=OpenAI(api_key=os.getenv("OPENAI_API_KEY")))
+    llm_service = LLMService(groq_provider=groq_provider, openai_provider=openai_provider, token_tracker=token_tracker)
+    
     settings = get_runtime_settings()
     i = 0
     max_failures = settings.max_failures
@@ -69,7 +80,7 @@ def ingest_backlog(conn, test_mode: int = 0):
             if quick_check_result["needs_ai"]:
                 ai_used +=1
                 print("Sending to AI for further classification")
-                ai_result = ai_tribal_eligibility_check(llm_client, normalized)
+                ai_result = ai_tribal_eligibility_check(llm_service, normalized)
                 if ai_result is None:
                     print("AI classification failed (returned None); skipping.")
                 else:
@@ -78,7 +89,7 @@ def ingest_backlog(conn, test_mode: int = 0):
                     if ai_result.get("is_tribal_eligible"):
                         ai_labelled_relevant += 1
             #6: Tag the grant
-            ai_result = ai_grant_tagging(llm_client, normalized)
+            ai_result = ai_grant_tagging(llm_service, normalized)
             if ai_result is None:
                 print("AI tagging failed (returned None); skipping.")
                 failed += 1
@@ -91,30 +102,10 @@ def ingest_backlog(conn, test_mode: int = 0):
             if i % 10 == 0: 
                 time.sleep(0.5)
             i += 1
-            retry_count = 0
             if failed > max_failures:
                 print(f"Failed to ingest {failed} grants after {max_failures} failures. Stopping ingestion...")
                 break
 
-        except RateLimitError as e:
-            pause_s = float(getattr(e, "retry_seconds", settings.retry_sleep_default_seconds) or settings.retry_sleep_default_seconds)
-            print(f"Hit AI 429 rate limit. Pausing ingestion for {pause_s:.1f}s and retrying...")
-            if retry_count < settings.max_rate_limit_retries:
-                retry_count += 1
-                time.sleep(pause_s)
-                continue
-            else:
-                print(
-                    f"Failed to ingest grant {opportunity_id} after "
-                    f"{settings.max_rate_limit_retries} retries. Skipping..."
-                )
-                failed += 1
-                if failed > max_failures:
-                    print(f"Failed to ingest {failed} grants after {max_failures} failures. Stopping ingestion...")
-                    break
-                else:
-                    i += 1
-                    continue
         except Exception as e:
             print(f"Error processing grant {opportunity_id}: {e}")
             failed += 1

@@ -9,7 +9,7 @@ SCHEMA_SQL = r"""
 -- Current "latest known" view of each opportunity
 CREATE TABLE IF NOT EXISTS grants (
   opportunity_source TEXT,
-  opportunity_id TEXT NOT NULL,
+  opportunity_id TEXT NOT NULL PRIMARY KEY,
 
   number TEXT,
   title TEXT,
@@ -194,6 +194,16 @@ CREATE TABLE IF NOT EXISTS project_tasks (
   task_project_id TEXT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS token_tracker (
+  id BIGSERIAL PRIMARY KEY,
+  provider TEXT NOT NULL,
+  prompt_tokens INTEGER NOT NULL,
+  completion_tokens INTEGER NOT NULL,
+  total_tokens INTEGER NOT NULL,
+  job_id INTEGER NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 """
 

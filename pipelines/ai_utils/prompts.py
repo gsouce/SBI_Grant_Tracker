@@ -174,11 +174,7 @@ def ai_tribal_eligibility_check(llm_service, grant):
         ],
     )
     result = llm_service.generate(req)
-    result_content = result.content.lower()
-    if result_content not in ["true", "false"]:
-        print(f"UNEXPECTED AI CLASSIFICATION RESULT: {result_content}")
-        return False
-
+    result_content = result.content
 
     if not result_content:
         print("No content returned from AI")

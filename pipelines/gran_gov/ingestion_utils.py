@@ -85,10 +85,10 @@ def normalize_opportunity(data: dict) -> dict:
                     "url": a.get("fileUrl"),
                 }
             )
-
+    opportunity_id = data.get("opportunityId")
     return {
         # Core
-        "id": data.get("opportunityId"),
+        "id": opportunity_id,
         "number": data.get("opportunityNumber"),
         "title": data.get("opportunityTitle"),
         "agency": synopsis.get("agencyDetails").get("agencyName") if synopsis.get("agencyDetails") is not None else synopsis.get("agencyName"),
@@ -113,7 +113,7 @@ def normalize_opportunity(data: dict) -> dict:
 
         "link_url": synopsis.get("fundingDescLinkUrl"),
         "link_description": synopsis.get("fundingDescLinkDesc"),
-        "grant_gov_url": f"https://www.grants.gov/search-results-detail/{data.get("opportunityId")}",
+        "grant_gov_url": f"https://www.grants.gov/search-results-detail/{opportunity_id}",
 
         "alns": json.dumps(alns_out, ensure_ascii=False),
         "eligibilities": json.dumps(elig_out, ensure_ascii=False),

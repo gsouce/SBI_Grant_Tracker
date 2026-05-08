@@ -4,7 +4,7 @@ from db.db_util import get_db_connection, is_test_mode
 
 db_migration_bp = Blueprint("db_migration", __name__)
 ## Data migration routes... 
-@db_migration_bp.route("/api/db_migration/reset_tables", methods=["POST"])
+@db_migration_bp.route("/api/db_migration/reset_tables", methods=["POST", "GET"])
 def reset_tables():
     """
     Reset the tables for the database

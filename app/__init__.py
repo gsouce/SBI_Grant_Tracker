@@ -19,7 +19,7 @@ def create_app():
 
     CORS(
         app,
-        origins=["https://sbi.vercel.app"],
+        origins=["https://sbigrants.vercel.app"],
         supports_credentials=True,  # needed if you use sessions/cookies
     )
 

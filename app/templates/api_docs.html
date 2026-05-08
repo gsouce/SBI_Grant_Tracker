@@ -112,8 +112,10 @@
 <div class="wrap">
     <div class="top">
         <h1>SBI Grant Tracker API docs</h1>
-        <p>Reference for frontend integration. All endpoints below are currently <strong>GET</strong> and return JSON.</p>
-        <p>Use URL query parameters exactly as documented. For write actions (bookmark/checklist updates), requests still use query params even though they mutate data.</p>
+        <p>Reference for frontend integration. Most JSON routes use <strong>GET</strong>; <code>/api/db_migration/reset_tables</code> also accepts <strong>POST</strong>.</p>
+        <p>Database selection follows <code>get_db_connection(test_mode=is_test_mode())</code>: set <code>DATABASE_URL</code> for Postgres, or use local SQLite when unset. <code>TEST_MODE</code> controls test DB behavior when not using <code>DATABASE_URL</code>.</p>
+        <p><strong>User activity routes</strong> read <code>session["user_id"]</code>. The client must establish a Flask session with that key before calling them; they do not take <code>user_id</code> as a query parameter.</p>
+        <p>For mutating actions (bookmarks, checklist, project tasks), the handlers still use GET with query parameters.</p>
     </div>
 
     <h2>Core data endpoints (`api.py`)</h2>
@@ -123,13 +125,20 @@
         <p>Lists opportunities. Supports either tag search, text search, or default top 50.</p>
         <div class="section-title">Query params</div>
         <ul>
-            <li><code>tags</code> (optional): comma-separated tags, example <code>education,housing</code></li>
-            <li><code>q</code> (optional): free-text search on title/agency, example <code>tribal health</code></li>
+            <li><code>tags</code> (optional): comma-separated tags, example <code>education,housing</code>. Matching is case-insensitive.</li>
+            <li><code>q</code> (optional): free-text search on title/agency (Postgres <code>ILIKE</code>), example <code>tribal health</code></li>
+        </ul>
+        <div class="section-title">Precedence</div>
+        <ul>
+            <li>If <code>tags</code> is non-empty, tag mode is used (even if <code>q</code> is also present).</li>
+            <li>Else if <code>q</code> is non-empty, search mode is used.</li>
+            <li>Else: simple list of up to 50 rows from <code>grants</code>.</li>
         </ul>
         <div class="section-title">Response shape</div>
         <ul>
-            <li>No params or <code>q</code>: array of basic grant objects</li>
-            <li>With <code>tags</code>: array of scored objects including <code>total_score</code> and <code>tag_scores</code></li>
+            <li>Default: <code>opportunity_id</code>, <code>title</code>, <code>agency</code>, <code>status</code></li>
+            <li>With <code>q</code>: same four fields, ordered by <code>posted_date</code> then <code>title</code></li>
+            <li>With <code>tags</code>: aggregated one object per opportunity with <code>total_score</code>, <code>tag_scores</code> (array of <code>tag</code> / <code>tag_score</code>), plus grant fields selected in SQL (e.g. <code>award_floor</code>, <code>award_ceiling</code>, <code>grant_gov_url</code>). The handler also selects <code>funding_amount</code>; the pipeline schema in <code>init_tables.py</code> currently uses <code>estimated_funding</code>—add a column/alias or change the query so tag mode matches your database.</li>
         </ul>
         <div class="section-title">Example response (`tags=education,housing`)</div>
 <pre>[
@@ -167,7 +176,22 @@
   "updated_at": "2026-04-12T03:41:22"
 }</pre>
         <div class="section-title">Not found</div>
+        <p>HTTP <strong>404</strong> with empty JSON object:</p>
 <pre>{}</pre>
+    </div>
+
+    <div class="endpoint">
+        <div class="path"><span class="method">GET</span><code>/api/opportunities/total_funding</code></div>
+        <p>Aggregated funding from the <code>grants</code> table.</p>
+        <div class="section-title">Query params</div>
+        <ul>
+            <li><code>tag</code> (optional): comma-separated tags. When provided, the server filters grants that have matching rows in <code>grant_tags</code> (implementation intended for per-tag totals).</li>
+        </ul>
+        <div class="section-title">Response shape</div>
+        <ul>
+            <li>Without <code>tag</code>: array of rows with <code>agency</code>, <code>total_funding</code>, <code>total_grants</code> (same <code>funding_amount</code> vs <code>estimated_funding</code> caveat as above)</li>
+            <li>With <code>tag</code>: array of per-tag aggregates (depends on DB columns; see handler in <code>app/routes/api.py</code>)</li>
+        </ul>
     </div>
 
     <div class="endpoint">
@@ -191,14 +215,15 @@
 
     <h2>User activity endpoints (`user_activity.py`)</h2>
 
+    <p class="note" style="margin-top: 0;">All routes in this section require <code>session["user_id"]</code> to be set. Missing session keys will surface as a server error.</p>
+
     <div class="endpoint">
         <div class="path"><span class="method">GET</span><code>/api/user_activity/update_user_grant_status</code></div>
         <p>Creates or updates a user's status for a grant in <code>user_grant_activity</code>.</p>
         <div class="section-title">Query params</div>
         <ul>
-            <li><code>user_id</code> (required): user identifier string</li>
             <li><code>opportunity_id</code> (required): grant id</li>
-            <li><code>status</code> (required): arbitrary status string (for example <code>saved</code>, <code>interested</code>, <code>submitted</code>)</li>
+            <li><code>status</code> (required): arbitrary status string (for example <code>viewed</code>, <code>saved</code>, <code>applied</code>)</li>
         </ul>
         <div class="section-title">Example response</div>
 <pre>{ "message": "Grant marked successfully" }</pre>
@@ -209,7 +234,6 @@
         <p>Bookmarks a grant for a user (<code>is_bookmarked = TRUE</code>).</p>
         <div class="section-title">Query params</div>
         <ul>
-            <li><code>user_id</code> (required)</li>
             <li><code>opportunity_id</code> (required)</li>
         </ul>
         <div class="section-title">Example response</div>
@@ -221,7 +245,6 @@
         <p>Unbookmarks a grant for a user (<code>is_bookmarked = FALSE</code>).</p>
         <div class="section-title">Query params</div>
         <ul>
-            <li><code>user_id</code> (required)</li>
             <li><code>opportunity_id</code> (required)</li>
         </ul>
         <div class="section-title">Example response</div>
@@ -230,9 +253,9 @@
 
     <div class="endpoint">
         <div class="path"><span class="method">GET</span><code>/api/user_activity/get_bookmarked_grants</code></div>
-        <p>Returns all bookmarked grants for a user from <code>user_grant_activity</code>, newest first.</p>
+        <p>Returns all bookmarked grants for the current session user from <code>user_grant_activity</code>, newest first.</p>
         <div class="section-title">Query params</div>
-        <ul><li><code>user_id</code> (required)</li></ul>
+        <ul><li>None</li></ul>
         <div class="section-title">Example response</div>
 <pre>[
   {
@@ -247,9 +270,9 @@
 
     <div class="endpoint">
         <div class="path"><span class="method">GET</span><code>/api/user_activity/get_user_alerts</code></div>
-        <p>Returns up to 50 alerts for bookmarked grants for the specified user.</p>
+        <p>Returns up to 50 alerts for bookmarked grants for the current session user (joins <code>user_grant_activity</code> and <code>grant_alerts</code>).</p>
         <div class="section-title">Query params</div>
-        <ul><li><code>user_id</code> (required)</li></ul>
+        <ul><li>None</li></ul>
         <div class="section-title">Example response</div>
 <pre>[
   {
@@ -268,10 +291,9 @@
 
     <div class="endpoint">
         <div class="path"><span class="method">GET</span><code>/api/user_activity/get_checklist_items</code></div>
-        <p>Returns checklist items for one user + one opportunity, ordered by <code>item_id</code>.</p>
+        <p>Returns checklist items for the current session user and one opportunity, ordered by <code>item_id</code>.</p>
         <div class="section-title">Query params</div>
         <ul>
-            <li><code>user_id</code> (required)</li>
             <li><code>opportunity_id</code> (required)</li>
         </ul>
         <div class="section-title">Example response</div>
@@ -291,7 +313,6 @@
         <p>Updates <code>is_completed</code> for one checklist item.</p>
         <div class="section-title">Query params</div>
         <ul>
-            <li><code>user_id</code> (required)</li>
             <li><code>opportunity_id</code> (required)</li>
             <li><code>item_id</code> (required)</li>
             <li><code>is_completed</code> (required): accepts <code>true</code>/<code>false</code>, <code>1</code>/<code>0</code>, <code>yes</code>/<code>no</code>, <code>t</code>/<code>on</code></li>
@@ -302,15 +323,108 @@
 
     <div class="endpoint">
         <div class="path"><span class="method">GET</span><code>/api/user_activity/add_checklist_item</code></div>
-        <p>Adds a new checklist item for a user and grant.</p>
+        <p>Adds a new checklist item for the current session user and grant.</p>
         <div class="section-title">Query params</div>
         <ul>
-            <li><code>user_id</code> (required)</li>
             <li><code>opportunity_id</code> (required)</li>
             <li><code>item_name</code> (required): checklist text</li>
         </ul>
         <div class="section-title">Example response</div>
 <pre>{ "message": "Checklist item added successfully" }</pre>
+    </div>
+
+    <div class="endpoint">
+        <div class="path"><span class="method">GET</span><code>/api/user_activity/get_user_info</code></div>
+        <p>Returns profile fields for the current session user (joins <code>users</code> and <code>groups</code>).</p>
+        <div class="section-title">Query params</div>
+        <ul><li>None</li></ul>
+        <div class="section-title">Response</div>
+        <p>Single row object as returned by the DB driver (shape should match <code>users</code> / join columns in <code>user_activity.py</code>).</p>
+    </div>
+
+    <div class="endpoint">
+        <div class="path"><span class="method">GET</span><code>/api/user_activity/get_user_projects</code></div>
+        <p>Lists projects owned by the current session user.</p>
+        <div class="section-title">Query params</div>
+        <ul><li>None</li></ul>
+        <div class="section-title">Response</div>
+        <p>Array of objects with <code>project_id</code>, <code>project_name</code>, <code>project_description</code>, <code>project_status</code>, <code>funding_required</code>, <code>funding_secured</code>.</p>
+    </div>
+
+    <div class="endpoint">
+        <div class="path"><span class="method">GET</span><code>/api/user_activity/add_project_task</code></div>
+        <p>Inserts a task; <code>task_owner_user_id</code> is set from the session user.</p>
+        <div class="section-title">Query params</div>
+        <ul>
+            <li><code>project_id</code> (required)</li>
+            <li><code>task_name</code> (required)</li>
+            <li><code>task_description</code> (required)</li>
+        </ul>
+        <div class="section-title">Example response</div>
+<pre>{ "message": "Task added successfully" }</pre>
+    </div>
+
+    <div class="endpoint">
+        <div class="path"><span class="method">GET</span><code>/api/user_activity/get_project_tasks</code></div>
+        <p>Lists tasks for a project. Does not require session user in the handler (any client with <code>project_id</code> may call).</p>
+        <div class="section-title">Query params</div>
+        <ul>
+            <li><code>project_id</code> (required)</li>
+        </ul>
+        <div class="section-title">Response</div>
+        <p>Array of <code>task_id</code>, <code>task_name</code>, <code>task_description</code>, <code>task_owner_user_id</code>, <code>task_project_id</code>.</p>
+    </div>
+
+    <div class="endpoint">
+        <div class="path"><span class="method">GET</span><code>/api/user_activity/update_project_task</code></div>
+        <p>Updates a task by <code>task_id</code>.</p>
+        <div class="section-title">Query params</div>
+        <ul>
+            <li><code>project_id</code> (passed through; not used in SQL)</li>
+            <li><code>task_id</code> (required)</li>
+            <li><code>task_name</code> (required)</li>
+            <li><code>task_description</code> (required)</li>
+            <li><code>task_status</code> (required in query; ensure your <code>project_tasks</code> table defines this column if you rely on it)</li>
+        </ul>
+        <div class="section-title">Example response</div>
+<pre>{ "message": "Task updated successfully" }</pre>
+    </div>
+
+    <div class="endpoint">
+        <div class="path"><span class="method">GET</span><code>/api/user_activity/delete_project_task</code></div>
+        <p>Deletes a task by <code>task_id</code>.</p>
+        <div class="section-title">Query params</div>
+        <ul>
+            <li><code>project_id</code> (passed through; not used in SQL)</li>
+            <li><code>task_id</code> (required)</li>
+        </ul>
+        <div class="section-title">Example response</div>
+<pre>{ "message": "Task deleted successfully" }</pre>
+    </div>
+
+    <h2>Maintenance / data reset</h2>
+
+    <div class="endpoint">
+        <div class="path"><span class="method">GET / POST</span><code>/api/db_migration/reset_tables</code></div>
+        <p><strong>Destructive.</strong> Drops all tables in the <code>public</code> schema (Postgres) or all user tables (SQLite). Use only in dev or with a full backup.</p>
+        <div class="section-title">Response</div>
+        <p><code>{ "message": "Tables reset successfully (N dropped)" }</code> on success.</p>
+    </div>
+
+    <div class="endpoint">
+        <div class="path"><span class="method">GET</span><code>/api/reset_oei_data</code></div>
+        <p>Deletes grants with <code>opportunity_source = 'wi_psc_oei'</code> and related rows in dependent tables (<code>grant_snapshots</code>, <code>grant_alerts</code>, <code>grant_tags</code>, <code>tribal_eligibility</code>, <code>user_grant_activity</code>, <code>grant_checklist_items</code>).</p>
+        <div class="section-title">Response</div>
+<pre>{
+  "message": "WI PSC OEI grants reset successfully",
+  "deleted_grant_rows": 0,
+  "cleared_opportunity_ids": 0
+}</pre>
+    </div>
+
+    <h2>HTML (non-JSON)</h2>
+    <div class="endpoint">
+        <p>The dashboard serves pages under <code>/dashboard</code>, <code>/grants</code>, <code>/alerts</code>, <code>/portal</code>, and this page at <code>/api-docs</code>. Those return HTML, not JSON.</p>
     </div>
 
     <div class="note">

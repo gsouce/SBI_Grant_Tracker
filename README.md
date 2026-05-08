@@ -7,6 +7,10 @@ Track Grants.gov opportunities relevant to Native American tribal governments, d
 - **`app/`**  
   Flask app (API + mission control dashboard). Under construction.
 
+## HTTP API reference
+
+With the web app running (`python run.py` or `python -m scripts.run_web`), open **`/api-docs`** for the interactive-style HTML reference (all JSON routes, query parameters, and notes on session auth). The template lives at `app/templates/api_docs.html`.
+
 - **`pipelines/`**  
   Data ingestion pipelines. See [`pipelines/README.MD`](pipelines/README.MD).  
   - **`pipelines/gran_gov/`** — Grants.gov API ingestion, normalization, snapshots, change detection, and (optional) Groq classification.  

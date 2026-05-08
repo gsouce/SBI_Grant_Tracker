@@ -17,6 +17,7 @@ from pipelines.ai_utils.prompts import ai_grant_tagging, ai_tribal_eligibility_c
 from groq import Groq
 import os
 from openai import OpenAI
+from db.db_util import row_get
 
 
 def ingest_backlog(conn, test_mode: int = 0):
@@ -34,7 +35,7 @@ def ingest_backlog(conn, test_mode: int = 0):
 
     #2: check if the opportunity ID is already in the database and has tags
     existing_ids = {
-        row[0] for row in conn.execute(
+        row_get(row, "opportunity_id", 0) for row in conn.execute(
             "SELECT distinct opportunity_id FROM grant_tags"
         ).fetchall()
     }

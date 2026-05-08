@@ -11,6 +11,8 @@ Track Grants.gov opportunities relevant to Native American tribal governments, d
 
 With the web app running (`python run.py` or `python -m scripts.run_web`), open **`/api-docs`** for the interactive-style HTML reference (all JSON routes, query parameters, and notes on session auth). The template lives at `app/templates/api_docs.html`.
 
+**Sessions (login / client portal):** Set **`SECRET_KEY`** in production so Flask can sign session cookies. `POST /api/auth/login` with JSON `{"email","password"}` checks `users.user_email` / `users.user_password` (Werkzeug hash) and stores **`user_id` in the server session**; the browser keeps a session cookie. User-activity routes read `session["user_id"]`—do not pass `user_id` in the query string. **`/portal`** uses this flow. To create a test user, insert into `users` with `user_password` from `werkzeug.security.generate_password_hash(...)`.
+
 - **`pipelines/`**  
   Data ingestion pipelines. See [`pipelines/README.MD`](pipelines/README.MD).  
   - **`pipelines/gran_gov/`** — Grants.gov API ingestion, normalization, snapshots, change detection, and (optional) Groq classification.  
@@ -63,6 +65,7 @@ Use **dotted** module names with `python -m` (not slashes).
 | **Web app entrypoint (deploy-friendly)** | `python -m scripts.run_web` |
 | **Daily job entrypoint (deploy-friendly)** | `python -m scripts.run_daily_job` |
 | **Backlog job entrypoint (deploy-friendly)** | `python -m scripts.run_backlog_job` |
+| **Seed a demo login user** (Werkzeug-hashed password for `/api/auth/login`) | `python -m scripts.seed_demo_user --email you@example.com --password '...'` |
 
 Environment / config:
 

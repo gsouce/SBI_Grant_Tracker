@@ -4,7 +4,7 @@ API Routes used for user activity
 from flask import Blueprint, jsonify
 from flask import request, session
 from db.db_util import get_db_connection, is_test_mode, row_get
-from app.routes.api import _rows_to_dicts
+from app.routes.api import _row_to_dict, _rows_to_dicts
 
 user_activity_bp = Blueprint("user_activity", __name__)
 
@@ -231,12 +231,18 @@ def get_user_info():
         conn = get_db_connection(test_mode=is_test_mode())
         user_id = session["user_id"]
         cursor = conn.cursor()
-        cursor.execute("""
-        SELECT user_id, email, role, user_name, group.group_name
-        FROM users 
-        left join groups on users.group_id = groups.group_id
-        WHERE user_id = %s""", (user_id,))
-        user = cursor.fetchone()
+        cursor.execute(
+            """
+            SELECT users.user_id, users.user_email, users.role, users.user_name, groups.group_name
+            FROM users
+            LEFT JOIN groups ON users.group_id = groups.group_id
+            WHERE users.user_id = %s
+            """,
+            (user_id,),
+        )
+        user = _row_to_dict(cursor)
+        if user is None:
+            return jsonify({}), 404
         return jsonify(user)
     except Exception as e:
         return jsonify({"message": "Error getting user info: " + str(e)}), 500

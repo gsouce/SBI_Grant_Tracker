@@ -374,18 +374,85 @@
             vertical-align: middle;
         }
 
+        .auth-gate {
+            max-width: 420px;
+            margin: 40px auto;
+            padding: 24px;
+            background: var(--panel);
+            border: 1px solid var(--border);
+        }
+
+        .auth-gate h2 {
+            margin: 0 0 8px 0;
+            font-size: 1.1rem;
+            color: #f8fafc;
+        }
+
+        .auth-gate .hint {
+            font-size: 0.85rem;
+            color: var(--muted);
+            margin: 0 0 18px 0;
+        }
+
+        .auth-gate #login-form .field {
+            margin-bottom: 14px;
+        }
+
+        .auth-gate #login-error {
+            margin: 0 0 12px 0;
+            text-align: left;
+        }
+
+        .portal-main[hidden] {
+            display: none !important;
+        }
+
+        .auth-gate[hidden] {
+            display: none !important;
+        }
+
+        #session-user-id {
+            font-size: 0.9rem;
+            color: var(--text);
+        }
+
+        .top-bar-label {
+            font-size: 0.75rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
     </style>
 </head>
 <body>
 
+<div id="auth-gate" class="auth-gate">
+    <h2>Sign in</h2>
+    <p class="hint">After you sign in, Flask stores <code>user_id</code> in a <strong>server-side session</strong> and sets a signed session cookie in your browser. User-activity API calls send that cookie automatically (same site); you do not pass <code>user_id</code> in the query string.</p>
+    <form id="login-form" action="#" method="post">
+        <div class="field">
+            <label for="login-email">Email</label>
+            <input type="email" id="login-email" name="email" autocomplete="username" required>
+        </div>
+        <div class="field">
+            <label for="login-password">Password</label>
+            <input type="password" id="login-password" name="password" autocomplete="current-password" required>
+        </div>
+        <p class="error" id="login-error" hidden></p>
+        <button type="submit" class="primary">Sign in</button>
+    </form>
+</div>
+
+<div id="portal-main" class="portal-main" hidden>
 <div class="top-bar">
     <div class="nav-links"><a href="/dashboard">← Mission Control</a> · <a href="/grants">Grants list</a></div>
     <div style="flex:1"></div>
     <div>
-        <label for="demo-user-id">Demo user id</label><br>
-        <input type="text" id="demo-user-id" readonly aria-readonly="true">
+        <span class="top-bar-label">Signed in as</span><br>
+        <span id="session-user-id" class="mono" aria-live="polite"></span>
     </div>
-    <button type="button" id="btn-reset-user" disabled title="Demo user is fixed for now">Demo user fixed</button>
+    <button type="button" id="btn-logout">Sign out</button>
 </div>
 
 <div class="portal-grid">
@@ -449,9 +516,11 @@
         </div>
     </section>
 </div>
+</div>
 
 <script>
-const DEMO_USER_ID = "demo-user";
+/** Include cookies on same-origin requests so Flask session works. */
+const fetchOpts = { credentials: "same-origin" };
 
 function escapeHtml(s) {
     if (s == null || s === "") return "";
@@ -460,15 +529,58 @@ function escapeHtml(s) {
     return div.innerHTML;
 }
 
-function getUserId() {
-    return DEMO_USER_ID;
+async function apiSession() {
+    const res = await fetch("/api/auth/session", fetchOpts);
+    if (res.status === 401) return null;
+    if (!res.ok) throw new Error("session");
+    const data = await res.json();
+    return data.user_id != null ? String(data.user_id) : null;
 }
 
-function refreshUserIdField() {
-    document.getElementById("demo-user-id").value = getUserId();
+async function showPortalForUser(userId) {
+    document.getElementById("session-user-id").textContent = userId;
+    document.getElementById("auth-gate").hidden = true;
+    document.getElementById("portal-main").hidden = false;
+    await loadAll();
 }
 
-document.getElementById("btn-reset-user").addEventListener("click", () => {});
+document.getElementById("login-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById("login-error");
+    errEl.hidden = true;
+    const email = document.getElementById("login-email").value.trim();
+    const password = document.getElementById("login-password").value;
+    const res = await fetch("/api/auth/login", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+    });
+    let data = {};
+    try {
+        data = await res.json();
+    } catch (_) {}
+    if (!res.ok) {
+        errEl.textContent = data.message || "Sign in failed.";
+        errEl.hidden = false;
+        return;
+    }
+    const uid = data.user_id != null ? String(data.user_id) : await apiSession();
+    if (!uid) {
+        errEl.textContent = "Signed in but no user id returned.";
+        errEl.hidden = false;
+        return;
+    }
+    await showPortalForUser(uid);
+});
+
+document.getElementById("btn-logout").addEventListener("click", async () => {
+    await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
+    document.getElementById("portal-main").hidden = true;
+    document.getElementById("auth-gate").hidden = false;
+    document.getElementById("login-password").value = "";
+    document.getElementById("session-user-id").textContent = "";
+});
 
 function searchTextToTagsParam(text) {
     return text.trim().split(/\s+/).filter(Boolean).join(",");
@@ -483,8 +595,7 @@ function normalizeArrayResponse(payload) {
 }
 
 async function fetchBookmarkedIds() {
-    const uid = getUserId();
-    const res = await fetch("/api/user_activity/get_bookmarked_grants?user_id=" + encodeURIComponent(uid));
+    const res = await fetch("/api/user_activity/get_bookmarked_grants", fetchOpts);
     if (!res.ok) throw new Error("bookmarks");
     const rows = normalizeArrayResponse(await res.json());
     bookmarkedOppIds = new Set(
@@ -496,15 +607,14 @@ async function fetchBookmarkedIds() {
 }
 
 async function fetchGrantTitle(oid) {
-    const res = await fetch("/api/opportunities/" + encodeURIComponent(oid));
+    const res = await fetch("/api/opportunities/" + encodeURIComponent(oid), fetchOpts);
     if (!res.ok) return null;
     const g = await res.json();
     return g.title != null ? String(g.title) : null;
 }
 
 async function renderBookmarks() {
-    const uid = getUserId();
-    const res = await fetch("/api/user_activity/get_bookmarked_grants?user_id=" + encodeURIComponent(uid));
+    const res = await fetch("/api/user_activity/get_bookmarked_grants", fetchOpts);
     const list = document.getElementById("bookmark-list");
     const empty = document.getElementById("bookmark-empty");
     list.innerHTML = "";
@@ -592,8 +702,7 @@ function renderAlerts() {
 }
 
 async function loadAlerts() {
-    const uid = getUserId();
-    const res = await fetch("/api/user_activity/get_user_alerts?user_id=" + encodeURIComponent(uid));
+    const res = await fetch("/api/user_activity/get_user_alerts", fetchOpts);
     if (!res.ok) {
         allAlerts = [];
     } else {
@@ -617,13 +726,10 @@ async function renderChecklistPanel() {
     hint.hidden = true;
     wrap.hidden = false;
     label.textContent = "Opportunity: " + activeOppId;
-    const uid = getUserId();
     itemsEl.innerHTML = "<p class='empty'>Loading…</p>";
     const res = await fetch(
-        "/api/user_activity/get_checklist_items?user_id=" +
-            encodeURIComponent(uid) +
-            "&opportunity_id=" +
-            encodeURIComponent(activeOppId)
+        "/api/user_activity/get_checklist_items?opportunity_id=" + encodeURIComponent(activeOppId),
+        fetchOpts
     );
     if (!res.ok) {
         itemsEl.innerHTML = "<p class='error'>Failed to load checklist.</p>";
@@ -644,17 +750,14 @@ async function renderChecklistPanel() {
         cb.type = "checkbox";
         cb.checked = done;
         cb.addEventListener("change", async () => {
-            const uid2 = getUserId();
             const url =
-                "/api/user_activity/update_checklist_item?user_id=" +
-                encodeURIComponent(uid2) +
-                "&opportunity_id=" +
+                "/api/user_activity/update_checklist_item?opportunity_id=" +
                 encodeURIComponent(activeOppId) +
                 "&item_id=" +
                 encodeURIComponent(id) +
                 "&is_completed=" +
                 (cb.checked ? "true" : "false");
-            const r = await fetch(url);
+            const r = await fetch(url, fetchOpts);
             if (!r.ok) cb.checked = !cb.checked;
         });
         const span = document.createElement("span");
@@ -671,15 +774,12 @@ document.getElementById("checklist-add-form").addEventListener("submit", async (
     const input = document.getElementById("new-item-name");
     const name = input.value.trim();
     if (!name) return;
-    const uid = getUserId();
     const url =
-        "/api/user_activity/add_checklist_item?user_id=" +
-        encodeURIComponent(uid) +
-        "&opportunity_id=" +
+        "/api/user_activity/add_checklist_item?opportunity_id=" +
         encodeURIComponent(activeOppId) +
         "&item_name=" +
         encodeURIComponent(name);
-    const res = await fetch(url);
+    const res = await fetch(url, fetchOpts);
     if (res.ok) {
         input.value = "";
         renderChecklistPanel();
@@ -687,17 +787,11 @@ document.getElementById("checklist-add-form").addEventListener("submit", async (
 });
 
 async function toggleBookmark(opportunityId, bookmark) {
-    const uid = getUserId();
     const path = bookmark
         ? "/api/user_activity/bookmark_grant"
         : "/api/user_activity/unbookmark_grant";
-    const url =
-        path +
-        "?user_id=" +
-        encodeURIComponent(uid) +
-        "&opportunity_id=" +
-        encodeURIComponent(opportunityId);
-    const res = await fetch(url);
+    const url = path + "?opportunity_id=" + encodeURIComponent(opportunityId);
+    const res = await fetch(url, fetchOpts);
     if (!res.ok) return;
     if (bookmark) bookmarkedOppIds.add(opportunityId);
     else {
@@ -725,7 +819,7 @@ async function loadGrantsTable() {
         } else if (qVal) {
             url += "?q=" + encodeURIComponent(qVal);
         }
-        const res = await fetch(url);
+        const res = await fetch(url, fetchOpts);
         if (!res.ok) throw new Error(String(res.status));
         const data = await res.json();
         if (!data.length) {
@@ -773,7 +867,6 @@ document.getElementById("search-form").addEventListener("submit", (e) => {
 });
 
 async function loadAll() {
-    refreshUserIdField();
     await fetchBookmarkedIds();
     await loadGrantsTable();
     await renderBookmarks();
@@ -781,7 +874,17 @@ async function loadAll() {
     await renderChecklistPanel();
 }
 
-loadAll();
+(async function initPortal() {
+    try {
+        const uid = await apiSession();
+        if (uid) await showPortalForUser(uid);
+    } catch (e) {
+        console.error(e);
+        document.getElementById("login-error").textContent =
+            "Could not check session. Is the server running?";
+        document.getElementById("login-error").hidden = false;
+    }
+})();
 </script>
 
 </body>

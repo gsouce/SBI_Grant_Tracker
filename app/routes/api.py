@@ -190,7 +190,7 @@ def get_total_funding():
                 SELECT
                     grants_tags.tag,
                     SUM(grants.funding_amount) AS total_funding,
-                    count(grants.opportunity_id) as total_grants) as total_funding_by_tag
+                    count(grants.opportunity_id) as total_grants
                 FROM grants
                 INNER JOIN (
                     SELECT

@@ -184,34 +184,42 @@ def get_total_funding():
         cursor = conn.cursor()
         if tag_list:
             tag_list_lower = [t.lower() for t in tag_list]
-            cursor = conn.cursor()
             cursor.execute(
                 """
                 SELECT
-                    grants_tags.tag,
-                    SUM(grants.funding_amount) AS total_funding,
-                    count(grants.opportunity_id) as total_grants
+                    grant_tags.tag,
+                    SUM(COALESCE(grants.estimated_funding, 0)) AS total_funding,
+                    COUNT(grants.opportunity_id) AS total_grants
                 FROM grants
                 INNER JOIN (
                     SELECT
                         opportunity_id,
                         tag,
                         tag_score,
-                        sum(tag_score) OVER (PARTITION BY opportunity_id) AS total_score
+                        SUM(tag_score) OVER (PARTITION BY opportunity_id) AS total_score
                     FROM grant_tags
                     WHERE LOWER(tag) = ANY(%s)
                 ) AS grant_tags
                     ON grants.opportunity_id = grant_tags.opportunity_id
                 WHERE grant_tags.total_score > 0
-                group by grant_tags.tag
-                ORDER BY grant_tags.total_score DESC
+                GROUP BY grant_tags.tag
+                ORDER BY total_funding DESC NULLS LAST
                 """,
                 (tag_list_lower,),
             )
             total_funding = _rows_to_dicts(cursor)
             return jsonify(total_funding)
         else:
-            cursor.execute("SELECT agency, SUM(funding_amount) AS total_funding, count(opportunity_id) as total_grants FROM grants group by agency order by total_funding desc")
+            cursor.execute(
+                """
+                SELECT agency,
+                       SUM(COALESCE(estimated_funding, 0)) AS total_funding,
+                       COUNT(opportunity_id) AS total_grants
+                FROM grants
+                GROUP BY agency
+                ORDER BY total_funding DESC NULLS LAST
+                """
+            )
             total_funding = _rows_to_dicts(cursor)
             return jsonify(total_funding)
     except Exception as e:

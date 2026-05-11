@@ -203,7 +203,7 @@ def get_total_funding():
                 ) AS grant_tags
                     ON grants.opportunity_id = grant_tags.opportunity_id
                 WHERE grant_tags.total_score > 0
-                group by grants_tags.tag
+                group by grant_tags.tag
                 ORDER BY grant_tags.total_score DESC
                 """,
                 (tag_list_lower,),

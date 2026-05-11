@@ -78,7 +78,8 @@ def reset_tables():
             )
             tables = [row_get(r, "name", 0) for r in cur.fetchall()]
             for name in tables:
-                cur.execute(f'DROP TABLE IF EXISTS "{name}"')
+                # cur.execute(f'DROP TABLE IF EXISTS "{name}"')
+                print(name)
             conn.commit()
             return jsonify({"message": f"Tables reset successfully ({len(tables)} dropped)"}), 200
 

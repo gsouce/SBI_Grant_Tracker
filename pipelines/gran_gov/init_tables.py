@@ -130,6 +130,7 @@ CREATE TABLE IF NOT EXISTS user_grant_activity (
   user_id TEXT NOT NULL,
   opportunity_id TEXT NOT NULL,
   is_bookmarked BOOLEAN NOT NULL DEFAULT FALSE,
+  unbookmarked BOOLEAN NOT NULL DEFAULT FALSE,
   status TEXT NOT NULL,  -- viewed, saved, applied
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (opportunity_id) REFERENCES grants(opportunity_id)

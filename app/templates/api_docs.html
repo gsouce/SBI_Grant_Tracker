@@ -231,7 +231,7 @@
 
     <div class="endpoint">
         <div class="path"><span class="method">GET</span><code>/api/user_activity/bookmark_grant</code></div>
-        <p>Bookmarks a grant for a user (<code>is_bookmarked = TRUE</code>).</p>
+        <p>Bookmarks a grant for the session user: upserts <code>user_grant_activity</code> with <code>status = 'saved'</code> and <code>is_bookmarked = TRUE</code> (on conflict, only bookmark flag is forced true).</p>
         <div class="section-title">Query params</div>
         <ul>
             <li><code>opportunity_id</code> (required)</li>
@@ -242,10 +242,15 @@
 
     <div class="endpoint">
         <div class="path"><span class="method">GET</span><code>/api/user_activity/unbookmark_grant</code></div>
-        <p>Unbookmarks a grant for a user (<code>is_bookmarked = FALSE</code>).</p>
+        <p>Removes the bookmark for the session user on an existing <code>user_grant_activity</code> row: sets <code>is_bookmarked = FALSE</code> and <code>unbookmarked = TRUE</code> so you can query “previously saved then removed” grants separately from never-touched rows.</p>
         <div class="section-title">Query params</div>
         <ul>
             <li><code>opportunity_id</code> (required)</li>
+        </ul>
+        <div class="section-title">Notes</div>
+        <ul>
+            <li>Requires a row to already exist for that <code>(user_id, opportunity_id)</code> (typically after a bookmark or status update). No insert is performed here.</li>
+            <li>The <code>user_grant_activity</code> table must include an <code>unbookmarked</code> boolean column for this update and for <code>get_unbookmarked_grants</code>.</li>
         </ul>
         <div class="section-title">Example response</div>
 <pre>{ "message": "Grant unbookmarked successfully" }</pre>
@@ -253,7 +258,7 @@
 
     <div class="endpoint">
         <div class="path"><span class="method">GET</span><code>/api/user_activity/get_bookmarked_grants</code></div>
-        <p>Returns all bookmarked grants for the current session user from <code>user_grant_activity</code>, newest first.</p>
+        <p>Returns all rows for the session user where <code>is_bookmarked = TRUE</code>, ordered by <code>created_at</code> descending (full <code>user_grant_activity</code> columns per row).</p>
         <div class="section-title">Query params</div>
         <ul><li>None</li></ul>
         <div class="section-title">Example response</div>
@@ -263,7 +268,26 @@
     "opportunity_id": "336489",
     "status": "saved",
     "is_bookmarked": true,
+    "unbookmarked": false,
     "created_at": "2026-04-12T18:31:49"
+  }
+]</pre>
+    </div>
+
+    <div class="endpoint">
+        <div class="path"><span class="method">GET</span><code>/api/user_activity/get_unbookmarked_grants</code></div>
+        <p>Returns up to <strong>50</strong> <code>user_grant_activity</code> rows for the session user where <code>unbookmarked = TRUE</code> (grants the user explicitly unbookmarked), ordered by <code>created_at</code> descending.</p>
+        <div class="section-title">Query params</div>
+        <ul><li>None</li></ul>
+        <div class="section-title">Example response</div>
+<pre>[
+  {
+    "user_id": "demo-user",
+    "opportunity_id": "336490",
+    "status": "saved",
+    "is_bookmarked": false,
+    "unbookmarked": true,
+    "created_at": "2026-04-10T09:00:00"
   }
 ]</pre>
     </div>

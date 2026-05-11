@@ -78,7 +78,7 @@ def unbookmark_grant():
         opportunity_id = request.args.get("opportunity_id")
         cursor = conn.cursor()
         cursor.execute(
-            "UPDATE user_grant_activity SET is_bookmarked = FALSE, unbookmarked = TRUE WHERE user_id = %s AND opportunity_id = %s",
+            "UPDATE user_grant_activity SET is_bookmarked = FALSE, unbookmarked = TRUE , created_at = CURRENT_TIMESTAMP WHERE user_id = %s AND opportunity_id = %s",
             (user_id, opportunity_id),
         )
         conn.commit()

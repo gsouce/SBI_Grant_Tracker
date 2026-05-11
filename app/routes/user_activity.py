@@ -78,7 +78,7 @@ def unbookmark_grant():
         opportunity_id = request.args.get("opportunity_id")
         cursor = conn.cursor()
         cursor.execute(
-            "UPDATE user_grant_activity SET is_bookmarked = FALSE WHERE user_id = %s AND opportunity_id = %s",
+            "UPDATE user_grant_activity SET is_bookmarked = FALSE and unbookmarked = TRUE WHERE user_id = %s AND opportunity_id = %s",
             (user_id, opportunity_id),
         )
         conn.commit()
@@ -113,6 +113,31 @@ def get_bookmarked_grants():
     finally:
         conn.close()
 
+
+@user_activity_bp.route("/api/user_activity/get_unbookmarked_grants")
+def get_unbookmarked_grants():
+    """
+    Get all unbookmarked grants for the current user
+    """
+    try:
+        conn = get_db_connection(test_mode=is_test_mode())
+        user_id = session["user_id"]
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT * FROM user_grant_activity
+            WHERE user_id = %s AND unbookmarked = TRUE
+            ORDER BY created_at DESC
+            limit 50
+            """,
+            (user_id,),
+        )
+        unbookmarked_grants = _rows_to_dicts(cursor)
+        return jsonify(unbookmarked_grants)
+    except Exception as e:
+        return jsonify({"message": "Error getting unbookmarked grants: " + str(e)}), 500
+    finally:
+        conn.close()
 
 @user_activity_bp.route("/api/user_activity/get_user_alerts")
 def get_user_alerts():

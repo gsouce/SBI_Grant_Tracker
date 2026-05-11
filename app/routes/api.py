@@ -47,7 +47,8 @@ def _aggregate_tagged_opportunities(rows: list[dict]) -> list[dict]:
     """
     Collapse one SQL row per (opportunity, tag) into one dict per opportunity.
 
-    Each item: opportunity_id, title, agency, status, total_score, tag_scores
+    Each item: opportunity_id, title, agency, status, estimated_funding,
+    grant_gov_url, total_score, tag_scores
     where tag_scores is [{ "tag", "tag_score" }, ...] sorted by tag_score desc.
     """
     by_oid: dict[str, dict] = {}
@@ -62,6 +63,8 @@ def _aggregate_tagged_opportunities(rows: list[dict]) -> list[dict]:
                 "title": r.get("title"),
                 "agency": r.get("agency"),
                 "status": r.get("status"),
+                "estimated_funding": r.get("estimated_funding"),
+                "grant_gov_url": r.get("grant_gov_url"),
                 "total_score": _as_float(r.get("total_score")),
                 "_tag_best": {},
             }

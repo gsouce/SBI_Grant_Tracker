@@ -53,11 +53,9 @@ def bookmark_grant():
         cursor = conn.cursor()
         cursor.execute(
             """
-            INSERT INTO user_grant_activity (user_id, opportunity_id, status, is_bookmarked, unbookmarked)
-            VALUES (%s, %s, 'saved', TRUE, FALSE)
-            ON CONFLICT (user_id, opportunity_id) DO UPDATE SET
-                is_bookmarked = TRUE,
-                unbookmarked = FALSE
+            INSERT INTO user_grant_activity (user_id, opportunity_id, status, is_bookmarked)
+            VALUES (%s, %s, 'saved', TRUE)
+            ON CONFLICT (user_id, opportunity_id) DO UPDATE SET is_bookmarked = TRUE and unbookmarked = FALSE
             """,
             (user_id, opportunity_id),
         )

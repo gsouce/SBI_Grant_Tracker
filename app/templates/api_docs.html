@@ -437,6 +437,18 @@
     <h2>Maintenance / data reset</h2>
 
     <div class="endpoint">
+        <div class="path"><span class="method">GET / POST</span><code>/api/db_migration/add_unbookmarked_grants</code></div>
+        <p>Idempotent schema tweak: adds <code>unbookmarked</code> on <code>user_grant_activity</code> if missing.</p>
+    </div>
+
+    <div class="endpoint">
+        <div class="path"><span class="method">GET / POST</span><code>/api/db_migration/update_grant_gov_url</code></div>
+        <p>Backfills <code>grants.grant_gov_url</code> for every row using the same fallback order as ingestion (<code>compute_grant_public_url</code>): use <code>link_url</code> (funding description link) when set; else Grants.gov detail <code>…/search-results-detail/&lt;opportunity_id&gt;</code> when <code>status</code> is <code>posted</code>; else Grants.gov search <code>…/search-grants?keywords=&lt;number&gt;</code> when <code>number</code> is set; else <code>null</code>.</p>
+        <div class="section-title">Response</div>
+<pre>{ "message": "grant_gov_url refreshed …", "rows_updated": 0 }</pre>
+    </div>
+
+    <div class="endpoint">
         <div class="path"><span class="method">GET / POST</span><code>/api/db_migration/reset_tables</code></div>
         <p><strong>Destructive.</strong> Drops all tables in the <code>public</code> schema (Postgres) or all user tables (SQLite). Use only in dev or with a full backup.</p>
         <div class="section-title">Response</div>

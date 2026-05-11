@@ -1,9 +1,38 @@
-import requests
 import json
-from jobs.log_utils import log
 from datetime import datetime
+from urllib.parse import quote
+
+import requests
+
 from db.db_util import scalar_from_row
+from jobs.log_utils import log
+
 OPPORTUNITY_URL = "https://api.grants.gov/v1/api/fetchOpportunity"
+
+
+def compute_grant_public_url(
+    link_url: str | None,
+    status: str | None,
+    opportunity_id: str | int | None,
+    opportunity_number: str | None,
+) -> str | None:
+    """
+    Best public "more information" URL for a grant (same rules as normalize_opportunity).
+
+    1. Use Grants.gov funding description link when present.
+    2. Else if status is posted: Grants.gov opportunity detail page by id.
+    3. Else if we have an opportunity number: Grants.gov search by that number.
+    4. Else None.
+    """
+    if link_url and str(link_url).strip():
+        return str(link_url).strip()
+    oid_s = str(opportunity_id).strip() if opportunity_id is not None else ""
+    if (status or "").strip().lower() == "posted" and oid_s:
+        return f"https://www.grants.gov/search-results-detail/{oid_s}"
+    num = (opportunity_number or "").strip() if opportunity_number else ""
+    if num:
+        return f"https://www.grants.gov/search-grants?keywords={quote(num)}"
+    return None
 
 
 def _as_dict(value) -> dict:
@@ -86,6 +115,14 @@ def normalize_opportunity(data: dict) -> dict:
                 }
             )
     opportunity_id = data.get("opportunityId")
+    status_out = "posted" if syn_avail else "forecasted"
+    public_url = compute_grant_public_url(
+        synopsis.get("fundingDescLinkUrl"),
+        status_out,
+        opportunity_id,
+        data.get("opportunityNumber"),
+    )
+
     return {
         # Core
         "id": opportunity_id,
@@ -95,7 +132,7 @@ def normalize_opportunity(data: dict) -> dict:
         "agency_code": synopsis.get("agencyDetails").get("agencyCode") if synopsis.get("agencyDetails") is not None else data.get("owningAgencyCode"),
 
         # Status & dates
-        "status": "posted" if syn_avail else "forecasted",
+        "status": status_out,
         "posted_date": synopsis.get("postingDate"),
         "close_date": data.get("archiveDate"),
         "deadline_date": synopsis.get("responseDateStr") if syn_avail else data.get("estApplicationResponseDate"),
@@ -113,7 +150,7 @@ def normalize_opportunity(data: dict) -> dict:
 
         "link_url": synopsis.get("fundingDescLinkUrl"),
         "link_description": synopsis.get("fundingDescLinkDesc"),
-        "grant_gov_url": f"https://www.grants.gov/search-results-detail/{opportunity_id}",
+        "grant_gov_url": public_url,
 
         "alns": json.dumps(alns_out, ensure_ascii=False),
         "eligibilities": json.dumps(elig_out, ensure_ascii=False),

@@ -3,6 +3,7 @@ import sqlite3
 from flask import Blueprint, jsonify
 
 from db.db_util import get_db_connection, is_test_mode, row_get
+from pipelines.gran_gov.ingestion_utils import compute_grant_public_url
 
 try:
     from psycopg import sql
@@ -96,6 +97,46 @@ def reset_tables():
         return jsonify({"message": f"Tables reset successfully ({len(tables)} dropped)"}), 200
     except Exception as e:
         return jsonify({"message": "Error resetting tables: " + str(e)}), 500
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+@db_migration_bp.route("/api/db_migration/update_grant_gov_url", methods=["POST", "GET"])
+def update_grant_gov_url():
+    """
+    Backfill ``grants.grant_gov_url`` using the same fallback strategy as ingestion
+    (``compute_grant_public_url``): funding ``link_url``, else posted detail URL,
+    else search by ``number``.
+    """
+    conn = None
+    try:
+        conn = get_db_connection(test_mode=is_test_mode())
+        cur = conn.cursor()
+        cur.execute("SELECT opportunity_id, status, number, link_url FROM grants")
+        rows = cur.fetchall()
+        ph = "?" if isinstance(conn, sqlite3.Connection) else "%s"
+        for row in rows:
+            opportunity_id = row_get(row, "opportunity_id", 0)
+            status = row_get(row, "status", 1)
+            number = row_get(row, "number", 2)
+            link_url = row_get(row, "link_url", 3)
+            public_url = compute_grant_public_url(
+                link_url, status, opportunity_id, number
+            )
+            cur.execute(
+                f"UPDATE grants SET grant_gov_url = {ph} WHERE opportunity_id = {ph}",
+                (public_url, opportunity_id),
+            )
+        conn.commit()
+        return jsonify(
+            {
+                "message": "grant_gov_url refreshed from link_url / status / number",
+                "rows_updated": len(rows),
+            }
+        ), 200
+    except Exception as e:
+        return jsonify({"message": "Error updating grant gov url: " + str(e)}), 500
     finally:
         if conn is not None:
             conn.close()
